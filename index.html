@@ -25,6 +25,7 @@
   --bg:#14122b; --surface:#1d1a3a; --ink:#ecebf7; --muted:#9a96bd; --line:#2e2a52;
   --accent:#a99cff; --moon:#f0c75e; --good:#5fd39c; --bad:#ff8a80; color-scheme:dark}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 var(--body);-webkit-text-size-adjust:100%}
 main{max-width:520px;margin:0 auto;padding-block:18px 40px;
@@ -44,6 +45,12 @@ h1{font:600 19px/1.1 var(--display);margin:0;letter-spacing:-.01em}
 @keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--good) 60%,transparent)}100%{box-shadow:0 0 0 9px transparent}}
 @media (prefers-reduced-motion:reduce){.dot.live{animation:none}}
 .hero{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:20px 18px 16px;display:flex;flex-direction:column;gap:6px}
+.aprcard{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:16px 18px;display:grid;grid-template-columns:1fr auto;gap:2px 12px;align-items:end}
+.aprcard .apr{font:700 clamp(30px,10vw,40px)/1 var(--display);letter-spacing:-.02em;color:var(--accent);font-variant-numeric:tabular-nums}
+.aprcard .apr small{font-size:.5em;margin-left:2px}
+.aprcard .side{text-align:right;font:12px var(--mono);color:var(--muted);line-height:1.5}
+.aprcard .side b{font:600 15px var(--display);color:var(--ink)}
+.aprcard .foot{grid-column:1/-1;font-size:12px;color:var(--muted);margin-top:6px}
 .eyebrow{font:600 11px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .big{font:700 clamp(34px,11vw,46px)/1 var(--display);letter-spacing:-.02em;color:var(--moon);font-variant-numeric:tabular-nums;word-break:break-word}
 .big small{font-size:.45em;font-weight:600;color:var(--muted);margin-left:4px}
@@ -105,6 +112,15 @@ footer a{color:var(--accent)}
     </div>
     <button type="button" class="status" id="refresh" title="Actualitza ara" aria-live="polite"><span class="dot" id="dot"></span><span id="ago">connectant…</span></button>
   </header>
+
+  <section class="aprcard" id="aprCard" hidden aria-label="APR des del dipòsit">
+    <div>
+      <div class="eyebrow">APR des del dipòsit</div>
+      <div class="apr" id="aprBig">—</div>
+    </div>
+    <div class="side" id="aprSide"></div>
+    <div class="foot" id="aprFoot"></div>
+  </section>
 
   <div class="hero">
     <div class="eyebrow" id="feesLabel">Comissions guanyades</div>
@@ -173,6 +189,9 @@ footer a{color:var(--accent)}
             <input id="depNight" name="depNight" inputmode="decimal" placeholder="ex. 1700">
           </label>
         </div>
+        <label for="depDate">Data del dipòsit
+          <input id="depDate" name="depDate" type="date">
+        </label>
         <p class="hint">Amb el que vas posar al pool es calculen les comissions des del primer dia i la pèrdua impermanent. Tot es guarda només en aquest dispositiu.</p>
         <p class="msg" id="formMsg" hidden></p>
         <div class="btns">
@@ -207,7 +226,7 @@ const store = {
   get(k, d) { try { const v = localStorage.getItem("nightpool." + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
   set(k, v) { try { localStorage.setItem("nightpool." + k, JSON.stringify(v)); } catch {} },
 };
-let cfg = Object.assign({ key: "", addr: "", lpManual: "", depAda: "", depNight: "" }, store.get("cfg", {}));
+let cfg = Object.assign({ key: "", addr: "", lpManual: "", depAda: "", depNight: "", depDate: "" }, store.get("cfg", {}));
 let track = store.get("track", null);      // {t, r, lp}
 let hist = store.get("hist", []);          // [{t, r, p}]
 let mode = store.get("mode", "track");
@@ -365,6 +384,14 @@ function compute() {
     const fd = Math.max(0, 1 - (Math.sqrt(dep.a * 1e6 * dep.b * 1e6) / lp) / r);
     const feeV = value * fd, il = value - feeV - hodl;
     cmp = { hodl, value, il, feeV, net: value - hodl };
+    // Valor del dipòsit en ADA: al pool s'hi posa 50/50, així que val el doble dels ADA posats.
+    const invested = 2 * dep.a;
+    const t0 = cfg.depDate ? new Date(cfg.depDate + "T00:00:00").getTime() : NaN;
+    const days = (Date.now() - t0) / 864e5;
+    if (Number.isFinite(days) && days > 0) {
+      cmp.apr = { invested, days, feePct: feeV / invested * 100, feeApr: feeV / invested * 365 / days * 100,
+                  totalPct: (value - invested) / invested * 100 };
+    }
   }
   return { lp, r, price, share, a, b, value, fees, since, cmp, dep };
 }
@@ -467,6 +494,21 @@ function render() {
   }
   renderSpark(c);
 
+  const card = $("aprCard");
+  card.hidden = !c.dep;
+  if (c.dep) {
+    const A = c.cmp?.apr;
+    if (A) {
+      $("aprBig").innerHTML = `${nf(A.feeApr, A.feeApr < 10 ? 2 : 1)}<small>%</small>`;
+      const d = A.days < 2 ? `${nf(A.days * 24, 0)} h` : `${nf(A.days, 0)} dies`;
+      $("aprSide").innerHTML = `<b>+${nf(A.feePct, 2)}%</b><br>en ${d}`;
+      $("aprFoot").textContent = `Comissions (${nf(c.cmp.feeV, 2)} ₳) sobre ${nf(A.invested, 0)} ₳ dipositats (${nf(c.dep.a, 0)} ₳ + ${nf(c.dep.b, 0)} NIGHT). Resultat total en ADA: ${A.totalPct >= 0 ? "+" : "−"}${nf(Math.abs(A.totalPct), 2)}%.`;
+    } else {
+      $("aprBig").textContent = "—"; $("aprSide").textContent = "";
+      $("aprFoot").textContent = cfg.depDate ? "La data del dipòsit ha de ser anterior a avui." : "Posa la data del dipòsit a «La meva posició» per calcular l'APR.";
+    }
+  }
+
   if (c.cmp) {
     $("vsHodl").hidden = false;
     const cls = (el, v) => { el.className = v > 0 ? "pos" : v < 0 ? "neg" : ""; };
@@ -541,12 +583,12 @@ setInterval(() => {
 $("refresh").addEventListener("click", () => { $("ago").textContent = "comprovant…"; tickPool(); });
 
 // ---------- form ----------
-$("key").value = cfg.key; $("addr").value = cfg.addr; $("lpManual").value = cfg.lpManual; $("depAda").value = cfg.depAda; $("depNight").value = cfg.depNight;
+$("key").value = cfg.key; $("addr").value = cfg.addr; $("lpManual").value = cfg.lpManual; $("depAda").value = cfg.depAda; $("depNight").value = cfg.depNight; $("depDate").value = cfg.depDate;
 if (!cfg.key || (!cfg.addr && !cfg.lpManual)) $("setup").open = true;
 $("form").addEventListener("submit", e => {
   e.preventDefault();
   const prevAddr = cfg.addr, prevKey = cfg.key;
-  cfg = { key: $("key").value.trim(), addr: $("addr").value.trim(), lpManual: $("lpManual").value.trim(), depAda: $("depAda").value.trim(), depNight: $("depNight").value.trim() };
+  cfg = { key: $("key").value.trim(), addr: $("addr").value.trim(), lpManual: $("lpManual").value.trim(), depAda: $("depAda").value.trim(), depNight: $("depNight").value.trim(), depDate: $("depDate").value };
   store.set("cfg", cfg);
   if (cfg.addr !== prevAddr) state.lpWallet = null;
   if (deposit()) { mode = "deposit"; store.set("mode", mode); }
