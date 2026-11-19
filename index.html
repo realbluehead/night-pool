@@ -1,0 +1,526 @@
+<!doctype html>
+<html lang="ca">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#14122b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Pool NIGHT/ADA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Layout: una columna estreta pensada per al mòbil; la xifra de recompenses a dalt, el detall a sota. */
+:root{
+  --bg:#f3f2f8; --surface:#ffffff; --ink:#1b1838; --muted:#686486; --line:#e2e0ee;
+  --accent:#5b4bd6; --moon:#b98a1e; --good:#1f8a5b; --bad:#c2413b;
+  --display:"Sora",system-ui,sans-serif; --body:"Inter",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#14122b; --surface:#1d1a3a; --ink:#ecebf7; --muted:#9a96bd; --line:#2e2a52;
+  --accent:#a99cff; --moon:#f0c75e; --good:#5fd39c; --bad:#ff8a80; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#14122b; --surface:#1d1a3a; --ink:#ecebf7; --muted:#9a96bd; --line:#2e2a52;
+  --accent:#a99cff; --moon:#f0c75e; --good:#5fd39c; --bad:#ff8a80; color-scheme:dark}
+*{box-sizing:border-box}
+html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 var(--body);-webkit-text-size-adjust:100%}
+main{max-width:520px;margin:0 auto;padding-block:18px 40px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  display:flex;flex-direction:column;gap:14px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.pair{display:flex;align-items:center;gap:10px;min-width:0}
+.logos{display:flex}
+.logos img{width:30px;height:30px;border-radius:50%;background:var(--surface);border:2px solid var(--bg)}
+.logos img+img{margin-left:-10px}
+h1{font:600 19px/1.1 var(--display);margin:0;letter-spacing:-.01em}
+.sub{font-size:12px;color:var(--muted)}
+.status{display:flex;align-items:center;gap:6px;font:12px var(--mono);color:var(--muted);white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.dot.live{background:var(--good);box-shadow:0 0 0 0 var(--good);animation:pulse 2s infinite}
+.dot.err{background:var(--bad)}
+@keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--good) 60%,transparent)}100%{box-shadow:0 0 0 9px transparent}}
+@media (prefers-reduced-motion:reduce){.dot.live{animation:none}}
+.hero{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:20px 18px 16px;display:flex;flex-direction:column;gap:6px}
+.eyebrow{font:600 11px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.big{font:700 clamp(34px,11vw,46px)/1 var(--display);letter-spacing:-.02em;color:var(--moon);font-variant-numeric:tabular-nums;word-break:break-word}
+.big small{font-size:.45em;font-weight:600;color:var(--muted);margin-left:4px}
+.split{display:flex;flex-wrap:wrap;gap:4px 14px;font:14px var(--mono);color:var(--ink)}
+.split span{white-space:nowrap}
+.fiat{font:13px var(--mono);color:var(--muted)}
+.seg{display:flex;gap:4px;background:var(--bg);border-radius:10px;padding:3px;margin-top:8px;align-self:flex-start}
+.seg button{font:500 12px var(--body);border:0;background:transparent;color:var(--muted);padding:6px 10px;border-radius:8px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.seg button:disabled{opacity:.45;cursor:not-allowed}
+svg.spark{width:100%;height:56px;display:block;margin-top:6px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px;min-width:0}
+.tile .k{font-size:12px;color:var(--muted)}
+.tile .v{font:600 18px/1.25 var(--display);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.tile .n{font:12px var(--mono);color:var(--muted);overflow-wrap:anywhere}
+.pos{color:var(--good)} .neg{color:var(--bad)}
+section.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px}
+section.card h2{font:600 14px var(--display);margin:0 0 8px}
+dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:6px 12px}
+dt{color:var(--muted);font-size:13px}
+dd{margin:0;text-align:right;font:13px var(--mono);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+details summary{cursor:pointer;font:600 14px var(--display);list-style:none;display:flex;justify-content:space-between;align-items:center}
+details summary::-webkit-details-marker{display:none}
+details summary::after{content:"+";font:400 20px var(--mono);color:var(--muted)}
+details[open] summary::after{content:"−"}
+form{display:flex;flex-direction:column;gap:12px;margin-top:12px}
+label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
+input{font:15px var(--mono);padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);width:100%;min-width:0}
+input:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.hint{font-size:12px;color:var(--muted);margin:0}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+.btn{font:600 14px var(--body);padding:10px 16px;border-radius:10px;border:1px solid var(--accent);background:var(--accent);color:var(--surface);cursor:pointer}
+.btn.ghost{background:transparent;color:var(--accent)}
+.msg{font-size:13px;color:var(--bad);margin:0}
+.empty{color:var(--muted);font-size:14px;margin:4px 0 0}
+footer{font-size:12px;color:var(--muted);text-align:center;line-height:1.6}
+footer a{color:var(--accent)}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="pair">
+      <div class="logos">
+        <img alt="" onerror="this.remove()" src="https://static.minswap.org/coin-logo/ea81e6c835cd8f40dcdf079b25e7f1a43b56c9c0f1551ebe6331849954d7c292.png">
+        <img alt="" onerror="this.remove()" src="https://static.minswap.org/coin-logo/fff556bd223f42e3a5ef6e01462086d949651fcd351342fbca4550cf7e375795.png">
+      </div>
+      <div>
+        <h1>NIGHT / ADA</h1>
+        <div class="sub">Minswap V2 · comissió 0,3%</div>
+      </div>
+    </div>
+    <div class="status" aria-live="polite"><span class="dot" id="dot"></span><span id="ago">connectant…</span></div>
+  </header>
+
+  <div class="hero">
+    <div class="eyebrow" id="feesLabel">Comissions guanyades</div>
+    <div class="big" id="feesBig">—</div>
+    <div class="split" id="feesSplit"></div>
+    <div class="fiat" id="feesFiat"></div>
+    <svg class="spark" id="spark" hidden viewBox="0 0 300 56" preserveAspectRatio="none" aria-hidden="true"></svg>
+    <div class="seg" role="group" aria-label="Període">
+      <button type="button" id="modeDeposit" aria-pressed="false">Des del dipòsit</button>
+      <button type="button" id="modeTrack" aria-pressed="true">Des que el segueixo</button>
+    </div>
+    <p class="empty" id="heroEmpty" hidden></p>
+    <p class="msg" id="poolErr" hidden></p>
+  </div>
+
+  <div class="grid">
+    <div class="tile"><div class="k">La teva posició</div><div class="v" id="posValue">—</div><div class="n" id="posFiat"></div></div>
+    <div class="tile"><div class="k">Part del pool</div><div class="v" id="share">—</div><div class="n" id="lpAmt"></div></div>
+    <div class="tile"><div class="k">ADA al pool</div><div class="v" id="myAda">—</div><div class="n">la teva part</div></div>
+    <div class="tile"><div class="k">NIGHT al pool</div><div class="v" id="myNight">—</div><div class="n">la teva part</div></div>
+  </div>
+
+  <section class="card" id="vsHodl" hidden>
+    <h2>Comparat amb no haver-ho posat al pool</h2>
+    <dl>
+      <dt>Valor si ho haguessis guardat</dt><dd id="hodl">—</dd>
+      <dt>Valor actual al pool</dt><dd id="nowVal">—</dd>
+      <dt>Pèrdua impermanent</dt><dd id="il">—</dd>
+      <dt>Comissions</dt><dd id="feesAgain">—</dd>
+      <dt><strong>Resultat net</strong></dt><dd id="net"><strong>—</strong></dd>
+    </dl>
+  </section>
+
+  <section class="card">
+    <h2>Pool</h2>
+    <dl>
+      <dt>Preu NIGHT</dt><dd id="price">—</dd>
+      <dt>Reserves</dt><dd id="reserves">—</dd>
+      <dt>Liquiditat total</dt><dd id="tvl">—</dd>
+      <dt>Rendiment per comissions</dt><dd id="apr">—</dd>
+      <dt>Última operació</dt><dd id="lastTx">—</dd>
+    </dl>
+  </section>
+
+  <section class="card">
+    <details id="setup">
+      <summary>La meva posició</summary>
+      <form id="form" autocomplete="off">
+        <label for="key">Clau de Blockfrost (mainnet)
+          <input id="key" name="key" spellcheck="false" autocapitalize="off" placeholder="mainnet…">
+        </label>
+        <p class="hint">Gratuïta a <a href="https://blockfrost.io" target="_blank" rel="noopener" style="color:var(--accent)">blockfrost.io</a>: crea un projecte «Cardano mainnet» i copia'n el project ID. Es guarda només en aquest dispositiu.</p>
+        <label for="addr">Adreça de la wallet (addr1… o stake1…)
+          <input id="addr" name="addr" inputmode="text" spellcheck="false" placeholder="stake1u…">
+        </label>
+        <p class="hint">Només l'adreça pública. Es busquen els tokens LP de NIGHT/ADA de tota la wallet.</p>
+        <label for="lpManual">Tokens LP (opcional, si els tens en un farm)
+          <input id="lpManual" name="lpManual" inputmode="numeric" placeholder="ex. 93517643186">
+        </label>
+        <div class="row">
+          <label for="depAda">ADA dipositats
+            <input id="depAda" name="depAda" inputmode="decimal" placeholder="ex. 500">
+          </label>
+          <label for="depNight">NIGHT dipositats
+            <input id="depNight" name="depNight" inputmode="decimal" placeholder="ex. 1700">
+          </label>
+        </div>
+        <p class="hint">Amb el que vas posar al pool es calculen les comissions des del primer dia i la pèrdua impermanent. Tot es guarda només en aquest dispositiu.</p>
+        <p class="msg" id="formMsg" hidden></p>
+        <div class="btns">
+          <button class="btn" type="submit">Desa</button>
+          <button class="btn ghost" type="button" id="resetTrack">Reinicia el seguiment</button>
+        </div>
+      </form>
+    </details>
+  </section>
+
+  <footer>
+    Reserves llegides de la cadena via <a href="https://blockfrost.io" target="_blank" rel="noopener">Blockfrost</a> · preu ADA via CoinGecko<br>
+    S'actualitza cada 30 s. Les comissions es calculen pel creixement de √(reserves) per token LP.
+  </footer>
+</main>
+
+<script>
+(() => {
+"use strict";
+const BF = "https://cardano-mainnet.blockfrost.io/api/v0";
+const LP_POLICY = "f5808c2c990d86da54bfc97d89cee6efa20cd8461616359478d96b4c";
+const LP_NAME = "e74c52975908a612d5ce68327040d449aae99f8b463bb6de046a1b23c5713169";
+const LP_UNIT = LP_POLICY + LP_NAME;
+const NIGHT_POLICY = "0691b2fecca1ac4f53cb6dfb00b7013e561d1f34403b957cbb5af1fa";
+const NIGHT_NAME = "4e49474854";
+const POOL_ADDR = "addr1z84q0denmyep98ph3tmzwsmw0j7zau9ljmsqx6a4rvaau66j2c79gy9l76sdg0xwhd7r0c0kna0tycz4y5s6mlenh8pq777e2a";
+const POOL_MS = 30_000, WALLET_MS = 5 * 60_000;
+const $ = id => document.getElementById(id);
+
+// ---------- storage ----------
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("nightpool." + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("nightpool." + k, JSON.stringify(v)); } catch {} },
+};
+let cfg = Object.assign({ key: "", addr: "", lpManual: "", depAda: "", depNight: "" }, store.get("cfg", {}));
+let track = store.get("track", null);      // {t, r, lp}
+let hist = store.get("hist", []);          // [{t, r, p}]
+let mode = store.get("mode", "track");
+let state = { pool: null, lpWallet: null, adaUsd: null, adaEur: null, updated: 0, error: null, lastChange: null };
+
+// ---------- format ----------
+const nf = (x, d = 2) => Number.isFinite(x) ? x.toLocaleString("ca-ES", { minimumFractionDigits: d, maximumFractionDigits: d }) : "—";
+const ada = (x, d = 2) => nf(x, d) + " ₳";
+const eur = x => Number.isFinite(x) ? x.toLocaleString("ca-ES", { style: "currency", currency: "EUR" }) : "";
+const usd = x => Number.isFinite(x) ? x.toLocaleString("ca-ES", { style: "currency", currency: "USD" }) : "";
+const sign = x => (x > 0 ? "+" : x < 0 ? "−" : "") + nf(Math.abs(x));
+const ago = ms => { const s = Math.max(0, Math.round(ms / 1000)); if (s < 60) return `fa ${s} s`; const m = Math.round(s / 60); if (m < 60) return `fa ${m} min`; const h = Math.round(m / 60); if (h < 48) return `fa ${h} h`; return `fa ${Math.round(h / 24)} dies`; };
+const fiat = a => { const p = []; if (state.adaEur) p.push(eur(a * state.adaEur)); if (state.adaUsd) p.push(usd(a * state.adaUsd)); return p.join(" · "); };
+
+// ---------- CBOR (només el que fa servir el datum del pool) ----------
+function cbor(hex) {
+  const b = new Uint8Array(hex.match(/../g).map(h => parseInt(h, 16)));
+  let i = 0;
+  const BREAK = Symbol("break");
+  const len = ai => {
+    if (ai < 24) return BigInt(ai);
+    const n = { 24: 1, 25: 2, 26: 4, 27: 8 }[ai];
+    if (!n) return null;
+    let v = 0n; for (let k = 0; k < n; k++) v = (v << 8n) | BigInt(b[i++]);
+    return v;
+  };
+  const item = () => {
+    const ib = b[i++];
+    if (ib === 0xff) return BREAK;
+    const mt = ib >> 5, ai = ib & 31;
+    if (mt === 0) return len(ai);
+    if (mt === 1) return -1n - len(ai);
+    if (mt === 2 || mt === 3) {
+      if (ai === 31) { let out = ""; for (;;) { const c = item(); if (c === BREAK) return out; out += c; } }
+      const n = Number(len(ai)); const s = b.slice(i, i + n); i += n;
+      return mt === 2 ? Array.from(s, x => x.toString(16).padStart(2, "0")).join("") : new TextDecoder().decode(s);
+    }
+    if (mt === 4) {
+      const a = [];
+      if (ai === 31) { for (;;) { const c = item(); if (c === BREAK) return a; a.push(c); } }
+      const n = Number(len(ai)); for (let k = 0; k < n; k++) a.push(item()); return a;
+    }
+    if (mt === 5) {
+      const m = new Map();
+      if (ai === 31) { for (;;) { const k = item(); if (k === BREAK) return m; m.set(k, item()); } }
+      const n = Number(len(ai)); for (let k = 0; k < n; k++) m.set(item(), item()); return m;
+    }
+    if (mt === 6) { const tag = Number(len(ai)); return { tag, v: item() }; }
+    if (mt === 7) { if (ai === 20) return false; if (ai === 21) return true; if (ai === 22) return null; }
+    throw new Error("CBOR no suportat");
+  };
+  return item();
+}
+const fields = c => (c && c.tag >= 121 && c.tag <= 127) ? c.v : (c && c.tag === 102 ? c.v[1] : null);
+
+// ---------- fetch ----------
+async function bf(path) {
+  if (!cfg.key) throw Object.assign(new Error("Falta la clau de Blockfrost"), { code: "nokey" });
+  const r = await fetch(BF + path, { headers: { project_id: cfg.key } });
+  if (r.status === 404) return null;
+  if (r.status === 403) throw Object.assign(new Error("La clau de Blockfrost no és vàlida (ha de ser de mainnet)"), { code: "badkey" });
+  if (r.status === 429) throw new Error("Blockfrost: massa peticions, espera un moment");
+  if (!r.ok) throw new Error(`Blockfrost ${r.status}`);
+  return r.json();
+}
+
+async function fetchPool() {
+  const rows = await bf(`/addresses/${POOL_ADDR}/utxos/${LP_UNIT}`);
+  for (const u of rows || []) {
+    if (!u.inline_datum) continue;
+    const f = fields(cbor(u.inline_datum));
+    if (!f || f.length < 8) continue;
+    const a = fields(f[1]), b = fields(f[2]);
+    if (a?.[0] !== "" || b?.[0] !== NIGHT_POLICY || b?.[1] !== NIGHT_NAME) continue;
+    return { L: Number(f[3]), Ra: Number(f[4]), Rb: Number(f[5]), feeA: Number(f[6]), feeB: Number(f[7]), tx: u.tx_hash };
+  }
+  throw new Error("No s'ha trobat el pool");
+}
+
+let priceAt = 0;
+async function fetchAdaPrice() {
+  if (Date.now() - priceAt < 5 * 60_000) return;   // el preu fiat no cal cada 30 s
+  try {
+    const j = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=cardano&vs_currencies=eur,usd").then(r => r.ok ? r.json() : null);
+    if (j?.cardano?.eur) { state.adaEur = j.cardano.eur; state.adaUsd = j.cardano.usd; priceAt = Date.now(); return; }
+  } catch {}
+  try {   // alternativa: només USD, via Minswap
+    const j = await fetch("https://agg-api.minswap.org/aggregator/ada-price?currency=usd").then(r => r.ok ? r.json() : null);
+    if (j?.value?.price) { state.adaUsd = j.value.price; priceAt = Date.now(); }
+  } catch {}
+}
+
+async function fetchWalletLp(addr) {
+  addr = addr.trim();
+  if (!addr) return null;
+  if (!/^(addr1|stake1)[0-9a-z]+$/.test(addr)) throw new Error("L'adreça ha de començar per addr1 o stake1");
+  if (!cfg.key) {
+    // Sense clau: el saldo de la wallet via l'agregador de Minswap (accepta addr1 i stake1).
+    const r = await fetch(`https://agg-api.minswap.org/aggregator/wallet?address=${encodeURIComponent(addr)}`);
+    if (!r.ok) throw new Error(r.status === 429 ? "Minswap: massa peticions, ho torno a provar en uns minuts" : `Minswap ${r.status}`);
+    const j = await r.json();
+    return (j.balance || []).filter(x => x.asset?.token_id === LP_POLICY + "." + LP_NAME || x.asset?.token_id === LP_UNIT || (x.asset?.token_id || "").replace(".", "") === LP_UNIT)
+      .reduce((s, x) => s + Number(x.amount), 0);
+  }
+  let stake = addr.startsWith("stake1") ? addr : null;
+  if (!stake) {
+    const info = await bf(`/addresses/${addr}`);
+    if (!info) return 0;
+    stake = info.stake_address;
+    if (!stake) return Number((info.amount || []).find(x => x.unit === LP_UNIT)?.quantity || 0);
+  }
+  let total = 0;
+  for (let page = 1; page <= 20; page++) {
+    const rows = await bf(`/accounts/${stake}/addresses/assets?count=100&page=${page}`);
+    if (!rows || !rows.length) break;
+    for (const x of rows) if (x.unit === LP_UNIT) total += Number(x.quantity);
+    if (rows.length < 100) break;
+  }
+  return total;
+}
+
+// ---------- model ----------
+const growth = p => Math.sqrt(p.Ra * p.Rb) / p.L;   // √k per LP token: només creix amb les comissions
+
+function myLp() {
+  const m = Number(String(cfg.lpManual).replace(/\D/g, ""));
+  if (m > 0) return m;
+  return state.lpWallet || 0;
+}
+function deposit() {
+  const a = parseFloat(String(cfg.depAda).replace(",", ".")), b = parseFloat(String(cfg.depNight).replace(",", "."));
+  return a > 0 && b > 0 ? { a, b } : null;
+}
+
+function compute() {
+  const p = state.pool; if (!p) return null;
+  const lp = myLp();
+  const r = growth(p), price = p.Ra / p.Rb;
+  const share = lp / p.L;
+  const a = share * p.Ra / 1e6, b = share * p.Rb / 1e6;
+  const value = a + b * price;
+  const dep = deposit();
+  let r0 = null, since = null;
+  if (mode === "deposit" && dep && lp > 0) { r0 = Math.sqrt(dep.a * 1e6 * dep.b * 1e6) / lp; }
+  else if (track && track.lp === lp) { r0 = track.r; since = track.t; }
+  const f = r0 ? Math.max(0, 1 - r0 / r) : null;
+  const fees = f != null ? { a: a * f, b: b * f, v: value * f } : null;
+  let cmp = null;
+  if (dep && lp > 0) {
+    const hodl = dep.a + dep.b * price;
+    const fd = Math.max(0, 1 - (Math.sqrt(dep.a * 1e6 * dep.b * 1e6) / lp) / r);
+    const feeV = value * fd, il = value - feeV - hodl;
+    cmp = { hodl, value, il, feeV, net: value - hodl };
+  }
+  return { lp, r, price, share, a, b, value, fees, since, cmp, dep };
+}
+
+// ---------- history (per gràfic i APR) ----------
+function pushHist(p) {
+  const now = Date.now(), r = growth(p), last = hist[hist.length - 1];
+  if (!last || now - last.t > 5 * 60_000 || last.r !== r) {
+    if (last && now - last.t < 5 * 60_000) hist[hist.length - 1] = { t: now, r, p: p.Ra / p.Rb };
+    else hist.push({ t: now, r, p: p.Ra / p.Rb });
+  }
+  const cutoff = now - 30 * 864e5;
+  hist = hist.filter(h => h.t >= cutoff).slice(-3000);
+  store.set("hist", hist);
+}
+function feeApr() {
+  if (hist.length < 2) return null;
+  const last = hist[hist.length - 1];
+  const target = last.t - 7 * 864e5;
+  const first = hist.find(h => h.t >= target) || hist[0];
+  const dt = last.t - first.t;
+  if (dt < 3 * 3600e3 || last.r <= first.r) return dt < 3 * 3600e3 ? { pending: true, dt } : { apr: 0, dt };
+  return { apr: (Math.pow(last.r / first.r, 365 * 864e5 / dt) - 1) * 100, dt };
+}
+
+// ---------- render ----------
+function renderSpark(c) {
+  const svg = $("spark");
+  const r0 = c?.fees ? (mode === "deposit" && c.dep ? Math.sqrt(c.dep.a * 1e12 * c.dep.b) / c.lp : track?.r) : null;
+  const pts = r0 ? hist.filter(h => mode === "deposit" || h.t >= (track?.t || 0)).map(h => ({ t: h.t, y: c.value * Math.max(0, 1 - r0 / h.r) })) : [];
+  if (r0 && mode === "track" && track && (!pts.length || pts[0].t > track.t)) pts.unshift({ t: track.t, y: 0 });
+  svg.hidden = pts.length < 2;
+  if (pts.length < 2) { svg.innerHTML = ""; return; }
+  const t0 = pts[0].t, t1 = pts[pts.length - 1].t || t0 + 1, ymax = Math.max(...pts.map(q => q.y)) || 1, ymin = Math.min(...pts.map(q => q.y));
+  const X = t => ((t - t0) / Math.max(1, t1 - t0)) * 296 + 2, Y = y => 52 - ((y - ymin) / Math.max(1e-9, ymax - ymin)) * 46;
+  const d = pts.map((q, i) => `${i ? "L" : "M"}${X(q.t).toFixed(1)},${Y(q.y).toFixed(1)}`).join("");
+  const end = pts[pts.length - 1];
+  svg.innerHTML = `<path d="${d}L298,56L2,56Z" fill="var(--moon)" fill-opacity=".14"/><path d="${d}" fill="none" stroke="var(--moon)" stroke-width="2" vector-effect="non-scaling-stroke"/><circle cx="${X(end.t)}" cy="${Y(end.y)}" r="3" fill="var(--moon)"/>`;
+}
+
+function render() {
+  const p = state.pool, c = compute();
+  const dot = $("dot");
+  dot.className = "dot " + (state.error ? "err" : p ? "live" : "");
+  $("ago").textContent = state.error ? (state.error.code === "nokey" ? "falta la clau" : "error") : state.updated ? "actualitzat " + ago(Date.now() - state.updated) : "connectant…";
+  const pe = $("poolErr");
+  pe.hidden = !state.error;
+  if (state.error) pe.textContent = state.error.code === "nokey"
+    ? "Per llegir el pool cal una clau gratuïta de Blockfrost. Obre «La meva posició» i enganxa-la."
+    : state.error.message || "No s'ha pogut llegir el pool.";
+
+  const hasDep = !!deposit();
+  $("modeDeposit").disabled = !hasDep;
+  if (!hasDep && mode === "deposit") mode = "track";
+  $("modeDeposit").setAttribute("aria-pressed", mode === "deposit");
+  $("modeTrack").setAttribute("aria-pressed", mode === "track");
+
+  if (!p) return;
+  $("price").textContent = `${nf(c.price, 4)} ₳` + (state.adaEur ? ` · ${nf(c.price * state.adaEur, 4)} €` : state.adaUsd ? ` · ${nf(c.price * state.adaUsd, 4)} $` : "");
+  $("reserves").textContent = `${nf(p.Ra / 1e6, 0)} ₳ · ${nf(p.Rb / 1e6, 0)} NIGHT`;
+  $("tvl").textContent = ada(2 * p.Ra / 1e6, 0) + (state.adaEur ? ` · ${eur(2 * p.Ra / 1e6 * state.adaEur)}` : "");
+  const apr = feeApr();
+  $("apr").textContent = !apr ? "mesurant…" : apr.pending ? `mesurant (${Math.round(apr.dt / 60000)} min)` : `${nf(apr.apr, 1)}% anual · ${Math.round(apr.dt / 3600e3)} h`;
+  $("lastTx").innerHTML = `<a href="https://cardanoscan.io/transaction/${p.tx}" target="_blank" rel="noopener" style="color:var(--accent)">${state.lastChange ? ago(Date.now() - state.lastChange) : p.tx.slice(0, 8) + "…"}</a>`;
+
+  const empty = $("heroEmpty");
+  if (!c.lp) {
+    $("feesBig").textContent = "—"; $("feesSplit").textContent = ""; $("feesFiat").textContent = "";
+    ["posValue", "share", "myAda", "myNight"].forEach(k => $(k).textContent = "—");
+    $("posFiat").textContent = ""; $("lpAmt").textContent = "";
+    empty.hidden = false;
+    empty.textContent = cfg.addr ? (state.lpWallet === 0 ? "No s'han trobat tokens LP de NIGHT/ADA a la wallet. Si els tens en un farm, posa la quantitat a mà." : "Buscant els teus tokens LP…") : "Obre «La meva posició» a sota i posa l'adreça de la wallet.";
+    $("vsHodl").hidden = true; renderSpark(null);
+    return;
+  }
+
+  $("posValue").textContent = ada(c.value);
+  $("posFiat").textContent = fiat(c.value);
+  $("share").textContent = nf(c.share * 100, 4) + "%";
+  $("lpAmt").textContent = nf(c.lp, 0) + " LP";
+  $("myAda").textContent = nf(c.a, 2);
+  $("myNight").textContent = nf(c.b, 2);
+
+  if (c.fees) {
+    empty.hidden = true;
+    $("feesLabel").textContent = mode === "deposit" ? "Comissions guanyades des del dipòsit" : `Comissions guanyades des de ${new Date(c.since).toLocaleString("ca-ES", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`;
+    $("feesBig").innerHTML = `${nf(c.fees.v, c.fees.v < 10 ? 4 : 2)}<small>₳</small>`;
+    $("feesSplit").innerHTML = `<span>${nf(c.fees.a, 4)} ADA</span><span>+ ${nf(c.fees.b, 4)} NIGHT</span>`;
+    $("feesFiat").textContent = fiat(c.fees.v);
+  } else {
+    $("feesBig").textContent = "—"; $("feesSplit").textContent = ""; $("feesFiat").textContent = "";
+    empty.hidden = false; empty.textContent = "Començant el seguiment…";
+  }
+  renderSpark(c);
+
+  if (c.cmp) {
+    $("vsHodl").hidden = false;
+    const cls = (el, v) => { el.className = v > 0 ? "pos" : v < 0 ? "neg" : ""; };
+    $("hodl").textContent = ada(c.cmp.hodl);
+    $("nowVal").textContent = ada(c.cmp.value);
+    $("il").textContent = sign(c.cmp.il) + " ₳"; cls($("il"), c.cmp.il);
+    $("feesAgain").textContent = sign(c.cmp.feeV) + " ₳"; cls($("feesAgain"), c.cmp.feeV);
+    $("net").innerHTML = `<strong>${sign(c.cmp.net)} ₳</strong>` + (state.adaEur ? `<br>${eur(c.cmp.net * state.adaEur)}` : ""); cls($("net"), c.cmp.net);
+  } else $("vsHodl").hidden = true;
+}
+
+// ---------- loop ----------
+async function tickPool() {
+  try {
+    const [pool] = await Promise.all([fetchPool(), fetchAdaPrice()]);
+    if (state.pool && state.pool.tx !== pool.tx) state.lastChange = Date.now();
+    state.pool = pool; state.updated = Date.now(); state.error = null;
+    pushHist(pool);
+    const lp = myLp();
+    if (lp > 0 && (!track || track.lp !== lp)) { track = { t: Date.now(), r: growth(pool), lp }; store.set("track", track); }
+  } catch (e) { state.error = e; if (e.code !== "nokey") console.error(e); }
+  render();
+}
+let walletBusy = false;
+async function tickWallet() {
+  if (!cfg.addr || walletBusy) return;
+  walletBusy = true;
+  try { state.lpWallet = await fetchWalletLp(cfg.addr); $("formMsg").hidden = true; }
+  catch (e) { $("formMsg").textContent = e.message || "No s'ha pogut llegir la wallet."; $("formMsg").hidden = false; }
+  finally { walletBusy = false; }
+  if (state.pool) { const lp = myLp(); if (lp > 0 && (!track || track.lp !== lp)) { track = { t: Date.now(), r: growth(state.pool), lp }; store.set("track", track); } }
+  render();
+}
+
+let poolTimer, walletTimer;
+function start() {
+  clearInterval(poolTimer); clearInterval(walletTimer);
+  tickPool(); tickWallet();
+  poolTimer = setInterval(tickPool, POOL_MS);
+  walletTimer = setInterval(tickWallet, WALLET_MS);
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) { clearInterval(poolTimer); clearInterval(walletTimer); }
+  else start();
+});
+setInterval(() => { if (state.updated && !state.error) $("ago").textContent = "actualitzat " + ago(Date.now() - state.updated); }, 5000);
+
+// ---------- form ----------
+$("key").value = cfg.key; $("addr").value = cfg.addr; $("lpManual").value = cfg.lpManual; $("depAda").value = cfg.depAda; $("depNight").value = cfg.depNight;
+if (!cfg.key || (!cfg.addr && !cfg.lpManual)) $("setup").open = true;
+$("form").addEventListener("submit", e => {
+  e.preventDefault();
+  const prevAddr = cfg.addr, prevKey = cfg.key;
+  cfg = { key: $("key").value.trim(), addr: $("addr").value.trim(), lpManual: $("lpManual").value.trim(), depAda: $("depAda").value.trim(), depNight: $("depNight").value.trim() };
+  store.set("cfg", cfg);
+  if (cfg.addr !== prevAddr) state.lpWallet = null;
+  if (deposit()) { mode = "deposit"; store.set("mode", mode); }
+  $("setup").open = false;
+  if (cfg.key !== prevKey) { start(); return; }
+  render(); tickWallet();
+});
+$("resetTrack").addEventListener("click", () => {
+  if (!state.pool) return;
+  track = { t: Date.now(), r: growth(state.pool), lp: myLp() }; store.set("track", track);
+  mode = "track"; store.set("mode", mode); render();
+});
+$("modeDeposit").addEventListener("click", () => { mode = "deposit"; store.set("mode", mode); render(); });
+$("modeTrack").addEventListener("click", () => { mode = "track"; store.set("mode", mode); render(); });
+
+start();
+})();
+</script>
+</body>
+</html>
