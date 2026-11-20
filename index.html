@@ -75,6 +75,11 @@ svg.spark{width:100%;height:56px;display:block;margin-top:6px}
 .tile .v{font:600 18px/1.25 var(--display);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 .tile .n{font:12px var(--mono);color:var(--muted);overflow-wrap:anywhere}
 .pos{color:var(--good)} .neg{color:var(--bad)}
+.goal{display:flex;flex-direction:column;gap:10px}
+.goal .when{font:700 24px/1.15 var(--display);color:var(--moon);font-variant-numeric:tabular-nums}
+.goal .why{font-size:12px;color:var(--muted);margin:0}
+.bar{height:8px;border-radius:999px;background:var(--bg);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--moon);border-radius:inherit}
 section.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px}
 section.card h2{font:600 14px var(--display);margin:0 0 8px}
 dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:6px 12px}
@@ -144,6 +149,16 @@ footer a{color:var(--accent)}
     <p class="empty" id="heroEmpty" hidden></p>
     <p class="msg" id="poolErr" hidden></p>
   </div>
+
+  <section class="card goal" aria-labelledby="goalH">
+    <h2 id="goalH">Cuento de la lechera</h2>
+    <label for="goalN">Quants NIGHT vols tenir?
+      <input id="goalN" inputmode="decimal" placeholder="ex. 10000">
+    </label>
+    <div class="when" id="goalWhen" hidden></div>
+    <div class="bar" id="goalBar" hidden><i id="goalFill"></i></div>
+    <p class="why" id="goalWhy"></p>
+  </section>
 
   <div class="grid">
     <div class="tile"><div class="k">La teva posició</div><div class="v" id="posValue">—</div><div class="n" id="posFiat"></div></div>
@@ -238,7 +253,8 @@ let cfg = Object.assign({ key: "", addr: "", lpManual: "", depAda: "", depNight:
 let track = store.get("track", null);      // {t, r, lp}
 let hist = store.get("hist", []);          // [{t, r, p}]
 let mode = store.get("mode", "track");
-let unit = store.get("unit", "night");   // els guanys es mostren en NIGHT (objectiu: acumular NIGHT) o en ADA
+let unit = store.get("unit", "night");
+let goal = store.get("goal", "");   // els guanys es mostren en NIGHT (objectiu: acumular NIGHT) o en ADA
 let state = { pool: null, lpWallet: null, adaUsd: null, adaEur: null, updated: 0, error: null, lastChange: null, lastTxTime: null, lastGain: null };
 
 // ---------- format ----------
@@ -453,6 +469,26 @@ function renderSpark(c) {
 
 function deltaText() { const v = inU(state.lastGain.v); return `+${nf(v, 6)} ${sym()} ${ago(Date.now() - state.lastGain.t)}`; }
 
+// Cuento de la lechera: amb l'APR d'ara (comissions reinvertides, preu constant), quan arribes a N NIGHT.
+function renderGoal(c) {
+  const when = $("goalWhen"), bar = $("goalBar"), why = $("goalWhy");
+  const T = parseFloat(String(goal).replace(/\./g, "").replace(",", "."));
+  when.hidden = bar.hidden = true;
+  if (!c || !c.lp) { why.textContent = "Cal la teva posició per fer el càlcul."; return; }
+  const have = c.value / c.price;   // la posició sencera valorada en NIGHT
+  if (!(T > 0)) { why.textContent = `Ara la teva posició val ${nf(have, 0)} NIGHT.`; return; }
+  bar.hidden = false; $("goalFill").style.width = Math.min(100, have / T * 100) + "%";
+  if (have >= T) { when.hidden = false; when.textContent = "Ja hi ets! 🥛"; why.textContent = `Tens ${nf(have, 0)} NIGHT de ${nf(T, 0)}.`; return; }
+  let apr = c.cmp?.aprN?.feeApr, src = "des del teu dipòsit";
+  if (!(apr > 0)) { const pa = feeApr(); apr = pa?.apr; src = "del pool en les últimes hores"; }
+  if (!(apr > 0)) { why.textContent = `Tens ${nf(have, 0)} de ${nf(T, 0)} NIGHT. Falta l'APR: posa el dipòsit i la data, o espera unes hores que el mesuri.`; return; }
+  const days = 365 * Math.log(T / have) / Math.log(1 + apr / 100);
+  const d = new Date(Date.now() + days * 864e5);
+  when.hidden = false;
+  when.textContent = days > 365 * 100 ? "D'aquí a més de 100 anys" : `${d.toLocaleDateString("ca-ES", { day: "numeric", month: "long", year: "numeric" })} · ${days < 1 ? "menys d'1 dia" : nf(Math.ceil(days), 0) + " dies"}`;
+  why.textContent = `Tens ${nf(have, 0)} de ${nf(T, 0)} NIGHT (${nf(have / T * 100, 1)}%). Amb l'APR ${src} (${nf(apr, 1)}%), reinvertint les comissions i si el preu de NIGHT no es mou.`;
+}
+
 function lastTxHtml() {
   const p = state.pool;
   return `<a href="https://cardanoscan.io/transaction/${p.tx}" target="_blank" rel="noopener" style="color:var(--accent)">${state.lastTxTime ? ago(Date.now() - state.lastTxTime) : p.tx.slice(0, 8) + "…"}</a>`;
@@ -492,7 +528,7 @@ function render() {
     $("posFiat").textContent = ""; $("lpAmt").textContent = "";
     empty.hidden = false;
     empty.textContent = cfg.addr ? (state.lpWallet === 0 ? "No s'han trobat tokens LP de NIGHT/ADA a la wallet. Si els tens en un farm, posa la quantitat a mà." : "Buscant els teus tokens LP…") : "Obre «La meva posició» a sota i posa l'adreça de la wallet.";
-    $("vsHodl").hidden = true; renderSpark(null);
+    $("vsHodl").hidden = true; renderSpark(null); renderGoal(c);
     return;
   }
 
@@ -532,6 +568,8 @@ function render() {
       $("aprFoot").textContent = cfg.depDate ? "La data del dipòsit ha de ser anterior a avui." : "Posa la data del dipòsit a «La meva posició» per calcular l'APR.";
     }
   }
+
+  renderGoal(c);
 
   if (c.cmp) {
     $("vsHodl").hidden = false;
@@ -627,6 +665,8 @@ $("resetTrack").addEventListener("click", () => {
 });
 $("modeDeposit").addEventListener("click", () => { mode = "deposit"; store.set("mode", mode); render(); });
 $("modeTrack").addEventListener("click", () => { mode = "track"; store.set("mode", mode); render(); });
+$("goalN").value = goal;
+$("goalN").addEventListener("input", e => { goal = e.target.value.trim(); store.set("goal", goal); renderGoal(compute()); });
 $("unitNight").addEventListener("click", () => { unit = "night"; store.set("unit", unit); render(); });
 $("unitAda").addEventListener("click", () => { unit = "ada"; store.set("unit", unit); render(); });
 
