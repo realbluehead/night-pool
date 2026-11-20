@@ -58,6 +58,8 @@ h1{font:600 19px/1.1 var(--display);margin:0;letter-spacing:-.01em}
 @keyframes flash{0%{color:var(--good);transform:scale(1.04)}100%{color:var(--moon);transform:none}}
 .delta{align-self:flex-start;font:500 12px var(--mono);color:var(--good);background:color-mix(in srgb,var(--good) 14%,transparent);padding:3px 8px;border-radius:999px}
 .status{cursor:pointer;background:none;border:0;padding:4px 0}
+.hright{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+.hright .seg{margin-top:0}
 @media (prefers-reduced-motion:reduce){.big.flash{animation:none}}
 .split{display:flex;flex-wrap:wrap;gap:4px 14px;font:14px var(--mono);color:var(--ink)}
 .split span{white-space:nowrap}
@@ -110,7 +112,13 @@ footer a{color:var(--accent)}
         <div class="sub">Minswap V2 · comissió 0,3%</div>
       </div>
     </div>
-    <button type="button" class="status" id="refresh" title="Actualitza ara" aria-live="polite"><span class="dot" id="dot"></span><span id="ago">connectant…</span></button>
+    <div class="hright">
+      <button type="button" class="status" id="refresh" title="Actualitza ara" aria-live="polite"><span class="dot" id="dot"></span><span id="ago">connectant…</span></button>
+      <div class="seg" role="group" aria-label="Unitat dels guanys">
+        <button type="button" id="unitNight" aria-pressed="true">NIGHT</button>
+        <button type="button" id="unitAda" aria-pressed="false">ADA</button>
+      </div>
+    </div>
   </header>
 
   <section class="aprcard" id="aprCard" hidden aria-label="APR des del dipòsit">
@@ -230,6 +238,7 @@ let cfg = Object.assign({ key: "", addr: "", lpManual: "", depAda: "", depNight:
 let track = store.get("track", null);      // {t, r, lp}
 let hist = store.get("hist", []);          // [{t, r, p}]
 let mode = store.get("mode", "track");
+let unit = store.get("unit", "night");   // els guanys es mostren en NIGHT (objectiu: acumular NIGHT) o en ADA
 let state = { pool: null, lpWallet: null, adaUsd: null, adaEur: null, updated: 0, error: null, lastChange: null, lastTxTime: null, lastGain: null };
 
 // ---------- format ----------
@@ -239,6 +248,12 @@ const money = c => x => Number.isFinite(x) ? x.toLocaleString("ca-ES", { style: 
 const eur = money("EUR"), usd = money("USD");
 const sign = x => (x > 0 ? "+" : x < 0 ? "−" : "") + nf(Math.abs(x));
 const ago = ms => { const s = Math.max(0, Math.round(ms / 1000)); if (s < 60) return `fa ${s} s`; const m = Math.round(s / 60); if (m < 60) return `fa ${m} min`; const h = Math.round(m / 60); if (h < 48) return `fa ${h} h`; return `fa ${Math.round(h / 24)} dies`; };
+// Converteix un valor en ADA a la unitat triada, al preu actual del pool.
+const inU = x => unit === "night" && state.pool ? x * state.pool.Rb / state.pool.Ra : x;
+const sym = () => unit === "night" ? "NIGHT" : "₳";
+const dU = x => { const a = Math.abs(x); return unit === "night" ? (a < 10 ? 4 : 2) : (a < 1 ? 4 : 2); };
+const fU = (x, d) => nf(inU(x), d ?? dU(inU(x))) + " " + sym();
+const sU = x => { const v = inU(x); return (v > 0 ? "+" : v < 0 ? "−" : "") + nf(Math.abs(v), dU(v)) + " " + sym(); };
 const fiat = a => { const p = []; if (state.adaEur) p.push(eur(a * state.adaEur)); if (state.adaUsd) p.push(usd(a * state.adaUsd)); return p.join(" · "); };
 
 // ---------- CBOR (només el que fa servir el datum del pool) ----------
@@ -391,6 +406,10 @@ function compute() {
     if (Number.isFinite(days) && days > 0) {
       cmp.apr = { invested, days, feePct: feeV / invested * 100, feeApr: feeV / invested * 365 / days * 100,
                   totalPct: (value - invested) / invested * 100 };
+      // En NIGHT: el dipòsit val 2 × NIGHT posats; comissions i valor passats a NIGHT al preu d'ara.
+      const invN = 2 * dep.b, feeN = feeV / price, valN = value / price;
+      cmp.aprN = { invested: invN, days, feePct: feeN / invN * 100, feeApr: feeN / invN * 365 / days * 100,
+                   totalPct: (valN - invN) / invN * 100 };
     }
   }
   return { lp, r, price, share, a, b, value, fees, since, cmp, dep };
@@ -432,6 +451,8 @@ function renderSpark(c) {
   svg.innerHTML = `<path d="${d}L298,56L2,56Z" fill="var(--moon)" fill-opacity=".14"/><path d="${d}" fill="none" stroke="var(--moon)" stroke-width="2" vector-effect="non-scaling-stroke"/><circle cx="${X(end.t)}" cy="${Y(end.y)}" r="3" fill="var(--moon)"/>`;
 }
 
+function deltaText() { const v = inU(state.lastGain.v); return `+${nf(v, 6)} ${sym()} ${ago(Date.now() - state.lastGain.t)}`; }
+
 function lastTxHtml() {
   const p = state.pool;
   return `<a href="https://cardanoscan.io/transaction/${p.tx}" target="_blank" rel="noopener" style="color:var(--accent)">${state.lastTxTime ? ago(Date.now() - state.lastTxTime) : p.tx.slice(0, 8) + "…"}</a>`;
@@ -453,6 +474,8 @@ function render() {
   if (!hasDep && mode === "deposit") mode = "track";
   $("modeDeposit").setAttribute("aria-pressed", mode === "deposit");
   $("modeTrack").setAttribute("aria-pressed", mode === "track");
+  $("unitNight").setAttribute("aria-pressed", unit === "night");
+  $("unitAda").setAttribute("aria-pressed", unit === "ada");
 
   if (!p) return;
   $("price").textContent = `${nf(c.price, 4)} ₳` + (state.adaEur ? ` · ${nf(c.price * state.adaEur, 4)} €` : state.adaUsd ? ` · ${nf(c.price * state.adaUsd, 4)} $` : "");
@@ -473,7 +496,7 @@ function render() {
     return;
   }
 
-  $("posValue").textContent = ada(c.value);
+  $("posValue").textContent = fU(c.value);
   $("posFiat").textContent = fiat(c.value);
   $("share").textContent = nf(c.share * 100, 4) + "%";
   $("lpAmt").textContent = nf(c.lp, 0) + " LP";
@@ -483,10 +506,11 @@ function render() {
   if (c.fees) {
     empty.hidden = true;
     $("feesLabel").textContent = mode === "deposit" ? "Comissions guanyades des del dipòsit" : `Comissions guanyades des de ${new Date(c.since).toLocaleString("ca-ES", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`;
-    $("feesBig").innerHTML = `${nf(c.fees.v, c.fees.v < 100 ? 6 : 4)}<small>₳</small>`;
-    $("feesSplit").innerHTML = `<span>${nf(c.fees.a, 6)} ADA</span><span>+ ${nf(c.fees.b, 6)} NIGHT</span>`;
+    const fv = inU(c.fees.v);
+    $("feesBig").innerHTML = `${nf(fv, fv < 100 ? 6 : 4)}<small>${sym()}</small>`;
+    $("feesSplit").innerHTML = `${unit === "night" ? `<span>${nf(c.fees.b, 6)} NIGHT</span><span>+ ${nf(c.fees.a, 6)} ADA</span>` : `<span>${nf(c.fees.a, 6)} ADA</span><span>+ ${nf(c.fees.b, 6)} NIGHT</span>`}`;
     $("delta").hidden = !state.lastGain;
-    if (state.lastGain) $("delta").textContent = `+${nf(state.lastGain.v, 6)} ₳ ${ago(Date.now() - state.lastGain.t)}`;
+    if (state.lastGain) $("delta").textContent = deltaText();
     $("feesFiat").textContent = fiat(c.fees.v);
   } else {
     $("feesBig").textContent = "—"; $("feesSplit").textContent = ""; $("feesFiat").textContent = "";
@@ -497,12 +521,12 @@ function render() {
   const card = $("aprCard");
   card.hidden = !c.dep;
   if (c.dep) {
-    const A = c.cmp?.apr;
+    const A = unit === "night" ? c.cmp?.aprN : c.cmp?.apr;
     if (A) {
       $("aprBig").innerHTML = `${nf(A.feeApr, A.feeApr < 10 ? 2 : 1)}<small>%</small>`;
       const d = A.days < 2 ? `${nf(A.days * 24, 0)} h` : `${nf(A.days, 0)} dies`;
       $("aprSide").innerHTML = `<b>+${nf(A.feePct, 2)}%</b><br>en ${d}`;
-      $("aprFoot").textContent = `Comissions (${nf(c.cmp.feeV, 2)} ₳) sobre ${nf(A.invested, 0)} ₳ dipositats (${nf(c.dep.a, 0)} ₳ + ${nf(c.dep.b, 0)} NIGHT). Resultat total en ADA: ${A.totalPct >= 0 ? "+" : "−"}${nf(Math.abs(A.totalPct), 2)}%.`;
+      $("aprFoot").textContent = `Comissions (${fU(c.cmp.feeV)}) sobre ${nf(A.invested, 0)} ${sym()} dipositats (${nf(c.dep.a, 0)} ₳ + ${nf(c.dep.b, 0)} NIGHT). Resultat total en ${unit === "night" ? "NIGHT" : "ADA"}: ${A.totalPct >= 0 ? "+" : "−"}${nf(Math.abs(A.totalPct), 2)}%.`;
     } else {
       $("aprBig").textContent = "—"; $("aprSide").textContent = "";
       $("aprFoot").textContent = cfg.depDate ? "La data del dipòsit ha de ser anterior a avui." : "Posa la data del dipòsit a «La meva posició» per calcular l'APR.";
@@ -512,11 +536,11 @@ function render() {
   if (c.cmp) {
     $("vsHodl").hidden = false;
     const cls = (el, v) => { el.className = v > 0 ? "pos" : v < 0 ? "neg" : ""; };
-    $("hodl").textContent = ada(c.cmp.hodl);
-    $("nowVal").textContent = ada(c.cmp.value);
-    $("il").textContent = sign(c.cmp.il) + " ₳"; cls($("il"), c.cmp.il);
-    $("feesAgain").textContent = sign(c.cmp.feeV) + " ₳"; cls($("feesAgain"), c.cmp.feeV);
-    $("net").innerHTML = `<strong>${sign(c.cmp.net)} ₳</strong>` + (state.adaEur ? `<br>${eur(c.cmp.net * state.adaEur)}` : ""); cls($("net"), c.cmp.net);
+    $("hodl").textContent = fU(c.cmp.hodl);
+    $("nowVal").textContent = fU(c.cmp.value);
+    $("il").textContent = sU(c.cmp.il); cls($("il"), c.cmp.il);
+    $("feesAgain").textContent = sU(c.cmp.feeV); cls($("feesAgain"), c.cmp.feeV);
+    $("net").innerHTML = `<strong>${sU(c.cmp.net)}</strong>` + (state.adaEur ? `<br>${eur(c.cmp.net * state.adaEur)}` : ""); cls($("net"), c.cmp.net);
   } else $("vsHodl").hidden = true;
 }
 
@@ -577,7 +601,7 @@ setInterval(() => {
   $("ago").textContent = statusText();
   if (state.pool) {
     $("lastTx").innerHTML = lastTxHtml();
-    if (state.lastGain) $("delta").textContent = `+${nf(state.lastGain.v, 6)} ₳ ${ago(Date.now() - state.lastGain.t)}`;
+    if (state.lastGain) $("delta").textContent = deltaText();
   }
 }, 1000);
 $("refresh").addEventListener("click", () => { $("ago").textContent = "comprovant…"; tickPool(); });
@@ -603,6 +627,8 @@ $("resetTrack").addEventListener("click", () => {
 });
 $("modeDeposit").addEventListener("click", () => { mode = "deposit"; store.set("mode", mode); render(); });
 $("modeTrack").addEventListener("click", () => { mode = "track"; store.set("mode", mode); render(); });
+$("unitNight").addEventListener("click", () => { unit = "night"; store.set("unit", unit); render(); });
+$("unitAda").addEventListener("click", () => { unit = "ada"; store.set("unit", unit); render(); });
 
 start();
 })();
