@@ -157,6 +157,7 @@ footer a{color:var(--accent)}
     </label>
     <div class="when" id="goalWhen" hidden></div>
     <div class="bar" id="goalBar" hidden><i id="goalFill"></i></div>
+    <div class="split" id="goalRate" hidden></div>
     <p class="why" id="goalWhy"></p>
   </section>
 
@@ -471,22 +472,26 @@ function deltaText() { const v = inU(state.lastGain.v); return `+${nf(v, 6)} ${s
 
 // Cuento de la lechera: amb l'APR d'ara (comissions reinvertides, preu constant), quan arribes a N NIGHT.
 function renderGoal(c) {
-  const when = $("goalWhen"), bar = $("goalBar"), why = $("goalWhy");
+  const when = $("goalWhen"), bar = $("goalBar"), why = $("goalWhy"), rate = $("goalRate");
+  rate.hidden = true;
   const T = parseFloat(String(goal).replace(/\./g, "").replace(",", "."));
   when.hidden = bar.hidden = true;
   if (!c || !c.lp) { why.textContent = "Cal la teva posició per fer el càlcul."; return; }
   const have = c.value / c.price;   // la posició sencera valorada en NIGHT
-  if (!(T > 0)) { why.textContent = `Ara la teva posició val ${nf(have, 0)} NIGHT.`; return; }
-  bar.hidden = false; $("goalFill").style.width = Math.min(100, have / T * 100) + "%";
-  if (have >= T) { when.hidden = false; when.textContent = "Ja hi ets! 🥛"; why.textContent = `Tens ${nf(have, 0)} NIGHT de ${nf(T, 0)}.`; return; }
   let apr = c.cmp?.aprN?.feeApr, src = "des del teu dipòsit";
   if (!(apr > 0)) { const pa = feeApr(); apr = pa?.apr; src = "del pool en les últimes hores"; }
+  // Guany lineal: el teu % del pool no creix amb les comissions, així que cada dia guanyes el mateix que ara.
+  const perDay = apr > 0 ? have * apr / 100 / 365 : null;
+  if (perDay) { rate.hidden = false; rate.innerHTML = `<span>${nf(perDay / 24, perDay / 24 < 10 ? 2 : 1)} NIGHT/hora</span><span>${nf(perDay, perDay < 100 ? 1 : 0)} NIGHT/dia</span><span>${nf(perDay * 30, 0)} NIGHT/mes</span>`; }
+  if (!(T > 0)) { if (perDay) why.textContent = `Ara la teva posició val ${nf(have, 0)} NIGHT. Posa un objectiu per saber quan hi arribes.`; else why.textContent = `Ara la teva posició val ${nf(have, 0)} NIGHT.`; return; }
+  bar.hidden = false; $("goalFill").style.width = Math.min(100, have / T * 100) + "%";
+  if (have >= T) { when.hidden = false; when.textContent = "Ja hi ets! 🥛"; why.textContent = `Tens ${nf(have, 0)} NIGHT de ${nf(T, 0)}.`; return; }
   if (!(apr > 0)) { why.textContent = `Tens ${nf(have, 0)} de ${nf(T, 0)} NIGHT. Falta l'APR: posa el dipòsit i la data, o espera unes hores que el mesuri.`; return; }
-  const days = 365 * Math.log(T / have) / Math.log(1 + apr / 100);
+  const days = (T - have) / perDay;
   const d = new Date(Date.now() + days * 864e5);
   when.hidden = false;
   when.textContent = days > 365 * 100 ? "D'aquí a més de 100 anys" : `${d.toLocaleDateString("ca-ES", { day: "numeric", month: "long", year: "numeric" })} · ${days < 1 ? "menys d'1 dia" : nf(Math.ceil(days), 0) + " dies"}`;
-  why.textContent = `Tens ${nf(have, 0)} de ${nf(T, 0)} NIGHT (${nf(have / T * 100, 1)}%). Amb l'APR ${src} (${nf(apr, 1)}%), reinvertint les comissions i si el preu de NIGHT no es mou.`;
+  why.textContent = `Tens ${nf(have, 0)} de ${nf(T, 0)} NIGHT (${nf(have / T * 100, 1)}%). Amb l'APR ${src} (${nf(apr, 1)}%), guanyant cada dia el mateix que ara i si el preu de NIGHT no es mou.`;
 }
 
 function lastTxHtml() {
