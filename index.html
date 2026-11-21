@@ -301,7 +301,7 @@ let mode = store.get("mode", "track");
 let unit = store.get("unit", "night");
 // Objectiu del Cuento de la lechera, un per unitat (NIGHT o ADA).
 const goals = { night: store.get("goal", ""), ada: store.get("goalAda", "") };
-let state = { pool: null, lpWallet: null, adaUsd: null, adaEur: null, updated: 0, error: null, lastChange: null, lastTxTime: null, lastGain: null };
+let state = { fails: 0, pool: null, lpWallet: null, adaUsd: null, adaEur: null, updated: 0, error: null, lastChange: null, lastTxTime: null, lastGain: null };
 
 // ---------- format ----------
 const nf = (x, d = 2) => Number.isFinite(x) ? x.toLocaleString("ca-ES", { minimumFractionDigits: d, maximumFractionDigits: d }) : "—";
@@ -379,14 +379,38 @@ function parsePool(hex) {
   const sh = fields(f[8]);
   return { L: Number(f[3]), Ra: Number(f[4]), Rb: Number(f[5]), feeA: Number(f[6]), feeB: Number(f[7]), feeShare: sh && sh.length ? Number(sh[0]) : 0 };
 }
-async function fetchPool() {
+async function poolFromUtxos() {
   const rows = await bf(`/addresses/${POOL_ADDR}/utxos/${LP_UNIT}`);
   for (const u of rows || []) {
     if (!u.inline_datum) continue;
     const p = parsePool(u.inline_datum);
     if (p) return { ...p, tx: u.tx_hash };
   }
-  throw new Error("No s'ha trobat el pool");
+  return null;
+}
+// Camí alternatiu: l'última transacció del token LP i la sortida del pool que crea.
+async function poolFromLastTx() {
+  const rows = await bf(`/assets/${LP_UNIT}/transactions?count=5&order=desc`);
+  for (const x of rows || []) {
+    const u = await bf(`/txs/${x.tx_hash}/utxos`);
+    for (const o of u?.outputs || []) {
+      if (o.address !== POOL_ADDR || !o.inline_datum) continue;
+      const p = parsePool(o.inline_datum);
+      if (p) return { ...p, tx: x.tx_hash };
+    }
+  }
+  return null;
+}
+// De tant en tant Blockfrost respon buit per a l'adreça del pool (el pool no desapareix mai de la cadena):
+// es torna a provar i, si cal, es llegeix per l'altre camí.
+async function fetchPool() {
+  let p = await poolFromUtxos();
+  if (p) return p;
+  state.misses = (state.misses || 0) + 1;
+  await new Promise(r => setTimeout(r, 1500));
+  p = await poolFromUtxos() || await poolFromLastTx();
+  if (p) return p;
+  throw new Error("Blockfrost no ha retornat el pool");
 }
 
 // ---------- historial de la cadena ----------
@@ -799,12 +823,18 @@ async function tickPool() {
         }
       }
     }
-    state.pool = pool; state.updated = Date.now(); state.error = null;
+    state.pool = pool; state.updated = Date.now(); state.error = null; state.fails = 0;
     pushHist(pool);
     syncHistory();
     const lp = myLp();
     if (lp > 0 && (!track || track.lp !== lp)) { track = { t: Date.now(), r: growth(pool), lp }; store.set("track", track); }
-  } catch (e) { state.error = e; if (e.code !== "nokey") console.error(e); }
+  } catch (e) {
+    // Amb dades d'abans, un error puntual no s'ensenya: es manté l'última lectura i es reintenta aviat.
+    state.fails++;
+    if (!state.pool || e.code || state.fails >= 3) state.error = e;
+    if (e.code !== "nokey") console.warn("pool", e);
+    if (state.pool && state.fails < 3 && !e.code) setTimeout(tickPool, 8000);
+  }
   render();
   if (state.lastGain && Date.now() - state.lastGain.t < 2000) {
     const b = $("feesBig"); b.classList.remove("flash"); void b.offsetWidth; b.classList.add("flash");
