@@ -80,6 +80,21 @@ svg.spark{width:100%;height:56px;display:block;margin-top:6px}
 .goal .why{font-size:12px;color:var(--muted);margin:0}
 .bar{height:8px;border-radius:999px;background:var(--bg);overflow:hidden}
 .bar i{display:block;height:100%;background:var(--moon);border-radius:inherit}
+.goal .seg{margin-top:0}
+.goal .seg button{padding:6px 9px}
+.goal .src{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
+.goal input[type=range]{padding:0;border:0;background:none;accent-color:var(--moon);height:28px}
+.goal .px{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;color:var(--muted)}
+.goal .px b{font:600 14px var(--mono);color:var(--ink)}
+.evo .plot{position:relative}
+.evo svg{width:100%;height:150px;display:block;overflow:visible;touch-action:pan-y}
+.evo .axis{display:flex;justify-content:space-between;font:11px var(--mono);color:var(--muted);margin-top:4px}
+.evo .legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--muted);margin-bottom:8px}
+.evo .legend i{display:inline-block;width:14px;height:0;border-top:2px solid var(--moon);vertical-align:middle;margin-right:6px}
+.evo .legend i.hodl{border-top:2px dashed var(--muted)}
+.evo .yl{position:absolute;right:0;font:11px var(--mono);color:var(--muted);background:var(--surface);padding:0 2px}
+.evo .tip{position:absolute;top:8px;pointer-events:none;background:var(--ink);color:var(--surface);font:12px/1.4 var(--mono);padding:6px 8px;border-radius:8px;white-space:nowrap;transform:translateX(-50%)}
+.evo .note{font-size:12px;color:var(--muted);margin:8px 0 0}
 section.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px}
 section.card h2{font:600 14px var(--display);margin:0 0 8px}
 dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:6px 12px}
@@ -158,7 +173,30 @@ footer a{color:var(--accent)}
     <div class="when" id="goalWhen" hidden></div>
     <div class="bar" id="goalBar" hidden><i id="goalFill"></i></div>
     <div class="split" id="goalRate" hidden></div>
+    <div class="src">Ritme
+      <div class="seg" role="group" aria-label="Ritme de guanys">
+        <button type="button" data-src="dep" aria-pressed="true">Des del dipòsit</button>
+        <button type="button" data-src="7d" aria-pressed="false">7 dies</button>
+        <button type="button" data-src="24h" aria-pressed="false">24 h</button>
+      </div>
+    </div>
+    <div>
+      <div class="px"><label for="goalPx" style="display:inline">Si el preu de NIGHT canvia</label><b id="goalPxV">0%</b></div>
+      <input id="goalPx" type="range" min="-50" max="100" step="5" value="0" aria-describedby="goalPxV">
+    </div>
     <p class="why" id="goalWhy"></p>
+  </section>
+
+  <section class="card evo" id="evoCard" hidden aria-labelledby="evoH">
+    <h2 id="evoH">Evolució de la teva posició</h2>
+    <div class="legend"><span><i></i>Al pool</span><span id="evoLegHodl"><i class="hodl"></i>Si ho haguessis guardat</span></div>
+    <div class="plot">
+      <svg id="evo" viewBox="0 0 300 150" preserveAspectRatio="none" role="img" aria-label="Valor de la posició al llarg del temps"></svg>
+      <span class="yl" id="evoMax" style="top:0"></span><span class="yl" id="evoMin" style="bottom:0"></span>
+      <div class="tip" id="evoTip" hidden></div>
+    </div>
+    <div class="axis"><span id="evoT0"></span><span id="evoT1"></span></div>
+    <p class="note" id="evoNote"></p>
   </section>
 
   <div class="grid">
@@ -186,6 +224,9 @@ footer a{color:var(--accent)}
       <dt>Reserves</dt><dd id="reserves">—</dd>
       <dt>Liquiditat total</dt><dd id="tvl">—</dd>
       <dt>Rendiment per comissions</dt><dd id="apr">—</dd>
+      <dt>Volum 24 h <small>(estimat)</small></dt><dd id="vol24">—</dd>
+      <dt>Volum 7 dies <small>(estimat)</small></dt><dd id="vol7">—</dd>
+      <dt>La teva part fa 7 dies</dt><dd id="share7">—</dd>
       <dt>Última operació</dt><dd id="lastTx">—</dd>
     </dl>
   </section>
@@ -228,7 +269,7 @@ footer a{color:var(--accent)}
 
   <footer>
     Reserves llegides de la cadena via <a href="https://blockfrost.io" target="_blank" rel="noopener">Blockfrost</a> · preu ADA via CoinGecko<br>
-    Comprova el pool cada 30 s; les comissions només pugen quan algú opera al pool (de mitjana cada pocs minuts). Les comissions es calculen pel creixement de √(reserves) per token LP.
+    Comprova el pool cada 30 s; les comissions només pugen quan algú opera al pool (de mitjana cada pocs minuts). Les comissions es calculen pel creixement de √(reserves) per token LP. L'historial (ritme de 24 h i 7 dies, volum, evolució) es llegeix de la cadena via Blockfrost.
   </footer>
 </main>
 
@@ -252,7 +293,10 @@ const store = {
 };
 let cfg = Object.assign({ key: "", addr: "", lpManual: "", depAda: "", depNight: "", depDate: "" }, store.get("cfg", {}));
 let track = store.get("track", null);      // {t, r, lp}
-let hist = store.get("hist", []);          // [{t, r, p}]
+let hist = store.get("hist", []);          // [{t, r, p, L}] mesurat per aquest dispositiu
+let hpts = store.get("hpts", []);          // [{t, r, p, L}] llegit de la cadena (el passat no canvia)
+let goalSrc = store.get("goalSrc", "dep"); // ritme del Cuento: dep | 7d | 24h
+let goalPx = 0;                            // escenari de preu de NIGHT, en %
 let mode = store.get("mode", "track");
 let unit = store.get("unit", "night");
 // Objectiu del Cuento de la lechera, un per unitat (NIGHT o ADA).
@@ -326,17 +370,99 @@ async function bf(path) {
   return r.json();
 }
 
+// Datum del pool V2: [stake, assetA, assetB, LP total, reserva A, reserva B, comissió A, comissió B, part del protocol, …]
+function parsePool(hex) {
+  const f = fields(cbor(hex));
+  if (!f || f.length < 8) return null;
+  const a = fields(f[1]), b = fields(f[2]);
+  if (a?.[0] !== "" || b?.[0] !== NIGHT_POLICY || b?.[1] !== NIGHT_NAME) return null;
+  const sh = fields(f[8]);
+  return { L: Number(f[3]), Ra: Number(f[4]), Rb: Number(f[5]), feeA: Number(f[6]), feeB: Number(f[7]), feeShare: sh && sh.length ? Number(sh[0]) : 0 };
+}
 async function fetchPool() {
   const rows = await bf(`/addresses/${POOL_ADDR}/utxos/${LP_UNIT}`);
   for (const u of rows || []) {
     if (!u.inline_datum) continue;
-    const f = fields(cbor(u.inline_datum));
-    if (!f || f.length < 8) continue;
-    const a = fields(f[1]), b = fields(f[2]);
-    if (a?.[0] !== "" || b?.[0] !== NIGHT_POLICY || b?.[1] !== NIGHT_NAME) continue;
-    return { L: Number(f[3]), Ra: Number(f[4]), Rb: Number(f[5]), feeA: Number(f[6]), feeB: Number(f[7]), tx: u.tx_hash };
+    const p = parsePool(u.inline_datum);
+    if (p) return { ...p, tx: u.tx_hash };
   }
   throw new Error("No s'ha trobat el pool");
+}
+
+// ---------- historial de la cadena ----------
+// Les transaccions del token LP inclouen cada operació del pool (l'UTxO del pool el porta).
+// Per trobar l'estat del pool en un moment donat: cerca exponencial + binària per pàgines (ordre descendent).
+let pageCache = new Map();
+async function lpPage(n) {
+  if (!pageCache.has(n)) pageCache.set(n, (await bf(`/assets/${LP_UNIT}/transactions?count=100&order=desc&page=${n}`)) || []);
+  return pageCache.get(n);
+}
+const oldestT = rows => rows.length ? rows[rows.length - 1].block_time * 1000 : -Infinity;
+async function txPoint(hash, t) {
+  const u = await bf(`/txs/${hash}/utxos`);
+  for (const o of u?.outputs || []) {
+    if (o.address !== POOL_ADDR || !o.inline_datum || !(o.amount || []).some(x => x.unit === LP_UNIT)) continue;
+    const p = parsePool(o.inline_datum);
+    if (p) return { t, r: growth(p), p: p.Ra / p.Rb, L: p.L };
+  }
+  return null;
+}
+async function pointAt(target) {
+  let lo = 1, hi = 1;
+  for (;;) {
+    const rows = await lpPage(hi);
+    if (!rows.length || oldestT(rows) <= target) break;
+    lo = hi + 1; hi *= 2;
+    if (hi > 8192) return null;
+  }
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1, rows = await lpPage(mid);
+    if (!rows.length || oldestT(rows) <= target) hi = mid; else lo = mid + 1;
+  }
+  let rows = await lpPage(hi);
+  let cands = rows.filter(x => x.block_time * 1000 <= target);
+  if (!rows.length && hi > 1) cands = (await lpPage(hi - 1)).slice(-6).reverse();   // el pool és més jove: el punt més antic
+  for (const x of cands.slice(0, 6)) {
+    const q = await txPoint(x.tx_hash, x.block_time * 1000);
+    if (q) return q;
+  }
+  return null;
+}
+const depTime = () => { const t = cfg.depDate ? new Date(cfg.depDate + "T00:00:00").getTime() : NaN; return Number.isFinite(t) ? t : null; };
+function allPts() {
+  return [...hpts, ...hist].sort((a, b) => a.t - b.t);
+}
+let histBusy = false, histAt = 0;
+async function syncHistory(force) {
+  if (!cfg.key || histBusy || (!force && Date.now() - histAt < 20 * 60_000)) return;
+  histBusy = true; pageCache = new Map();
+  try {
+    const now = Date.now(), want = [[now - 864e5, 45 * 60e3], [now - 7 * 864e5, 4 * 3600e3]];
+    const t0 = depTime();
+    if (t0 && t0 < now - 864e5) {
+      const span = now - t0, n = Math.min(16, Math.max(2, Math.ceil(span / 864e5)));
+      for (let i = 0; i < n; i++) want.push([t0 + span * i / n, span / n / 2]);
+    }
+    for (const [t, tol] of want) {
+      if (allPts().some(q => Math.abs(q.t - t) <= tol)) continue;
+      const q = await pointAt(t);
+      if (q && !hpts.some(h => h.t === q.t)) { hpts.push(q); hpts.sort((a, b) => a.t - b.t); hpts = hpts.slice(-200); store.set("hpts", hpts); render(); }
+    }
+    histAt = Date.now();
+  } catch (e) { console.warn("historial", e); }
+  finally { histBusy = false; }
+  render();
+}
+// Rendiment del pool en una finestra (simple, anualitzat), amb el punt més proper a «ara − finestra».
+function windowStats(ms) {
+  const pts = allPts(), last = pts[pts.length - 1];
+  if (!last) return null;
+  const target = last.t - ms;
+  let best = null;
+  for (const q of pts) if (!best || Math.abs(q.t - target) < Math.abs(best.t - target)) best = q;
+  if (!best || Math.abs(best.t - target) > ms * 0.25 || last.t - best.t < ms * 0.5) return null;
+  const dt = last.t - best.t, f = Math.max(0, 1 - best.r / last.r);
+  return { apr: f * 365 * 864e5 / dt * 100, f, dt, from: best, to: last };
 }
 
 let priceAt = 0;
@@ -437,21 +563,12 @@ function compute() {
 function pushHist(p) {
   const now = Date.now(), r = growth(p), last = hist[hist.length - 1];
   if (!last || now - last.t > 5 * 60_000 || last.r !== r) {
-    if (last && now - last.t < 5 * 60_000) hist[hist.length - 1] = { t: now, r, p: p.Ra / p.Rb };
-    else hist.push({ t: now, r, p: p.Ra / p.Rb });
+    if (last && now - last.t < 5 * 60_000) hist[hist.length - 1] = { t: now, r, p: p.Ra / p.Rb, L: p.L };
+    else hist.push({ t: now, r, p: p.Ra / p.Rb, L: p.L });
   }
   const cutoff = now - 30 * 864e5;
   hist = hist.filter(h => h.t >= cutoff).slice(-3000);
   store.set("hist", hist);
-}
-function feeApr() {
-  if (hist.length < 2) return null;
-  const last = hist[hist.length - 1];
-  const target = last.t - 7 * 864e5;
-  const first = hist.find(h => h.t >= target) || hist[0];
-  const dt = last.t - first.t;
-  if (dt < 3 * 3600e3 || last.r <= first.r) return dt < 3 * 3600e3 ? { pending: true, dt } : { apr: 0, dt };
-  return { apr: (Math.pow(last.r / first.r, 365 * 864e5 / dt) - 1) * 100, dt };
 }
 
 // ---------- render ----------
@@ -471,7 +588,14 @@ function renderSpark(c) {
 
 function deltaText() { const v = inU(state.lastGain.v); return `+${nf(v, 6)} ${sym()} ${ago(Date.now() - state.lastGain.t)}`; }
 
-// Cuento de la lechera: amb l'APR d'ara (comissions reinvertides, preu constant), quan arribes a N NIGHT.
+// Cuento de la lechera: quan arribes a l'objectiu guanyant cada dia el mateix que ara.
+// El teu % del pool no creix amb les comissions, així que el guany és lineal (no compost).
+function goalAprs(c) {
+  const dep = (unit === "night" ? c?.cmp?.aprN : c?.cmp?.apr)?.feeApr;
+  const w7 = windowStats(7 * 864e5)?.apr, w1 = windowStats(864e5)?.apr;
+  return { dep: dep > 0 ? dep : null, "7d": w7 > 0 ? w7 : null, "24h": w1 > 0 ? w1 : null };
+}
+const SRC_TXT = { dep: "des del teu dipòsit", "7d": "dels últims 7 dies", "24h": "de les últimes 24 h" };
 function renderGoal(c) {
   const when = $("goalWhen"), bar = $("goalBar"), why = $("goalWhy"), rate = $("goalRate");
   rate.hidden = true;
@@ -480,25 +604,85 @@ function renderGoal(c) {
   const inp = $("goalN");
   if (document.activeElement !== inp && inp.value !== goals[unit]) inp.value = goals[unit];
   inp.placeholder = unit === "night" ? "ex. 10000" : "ex. 3000";
+  $("goalPxV").textContent = (goalPx > 0 ? "+" : goalPx < 0 ? "−" : "") + Math.abs(goalPx) + "%";
+  const aprs = goalAprs(c);
+  let src = goalSrc;
+  if (aprs[src] == null) src = ["dep", "7d", "24h"].find(k => aprs[k] != null) || goalSrc;
+  document.querySelectorAll("[data-src]").forEach(b => { b.disabled = aprs[b.dataset.src] == null; b.setAttribute("aria-pressed", b.dataset.src === src); });
   const T = parseFloat(String(goals[unit]).replace(/\./g, "").replace(",", "."));
   when.hidden = bar.hidden = true;
   if (!c || !c.lp) { why.textContent = "Cal la teva posició per fer el càlcul."; return; }
-  const have = unit === "night" ? c.value / c.price : c.value;   // la posició sencera, en la unitat triada
-  let apr = (unit === "night" ? c.cmp?.aprN : c.cmp?.apr)?.feeApr, src = "des del teu dipòsit";
-  if (!(apr > 0)) { const pa = feeApr(); apr = pa?.apr; src = "del pool en les últimes hores"; }
-  // Guany lineal: el teu % del pool no creix amb les comissions, així que cada dia guanyes el mateix que ara.
+  const now = unit === "night" ? c.value / c.price : c.value;   // la posició sencera, en la unitat triada
+  // Escenari de preu: amb x·k constant, el valor en ADA va amb √preu i en NIGHT amb 1/√preu.
+  const m = Math.sqrt(1 + goalPx / 100);
+  const have = unit === "night" ? now / m : now * m;
+  const apr = aprs[src];
   const perDay = apr > 0 ? have * apr / 100 / 365 : null;
   if (perDay) { rate.hidden = false; rate.innerHTML = `<span>${nf(perDay / 24, perDay / 24 < 10 ? 2 : 1)} ${U}/hora</span><span>${nf(perDay, perDay < 100 ? 1 : 0)} ${U}/dia</span><span>${nf(perDay * 30, 0)} ${U}/mes</span>`; }
-  if (!(T > 0)) { if (perDay) why.textContent = `Ara la teva posició val ${nf(have, 0)} ${U}. Posa un objectiu per saber quan hi arribes.`; else why.textContent = `Ara la teva posició val ${nf(have, 0)} ${U}.`; return; }
+  const pxTxt = goalPx ? ` Amb NIGHT a ${goalPx > 0 ? "+" : "−"}${Math.abs(goalPx)}%, la posició passaria a valer ${nf(have, 0)} ${U} (${have >= now ? "+" : "−"}${nf(Math.abs(have - now), 0)}).` : "";
+  if (!(T > 0)) { why.textContent = `Ara la teva posició val ${nf(now, 0)} ${U}.${pxTxt}` + (perDay ? " Posa un objectiu per saber quan hi arribes." : ""); return; }
   bar.hidden = false; $("goalFill").style.width = Math.min(100, have / T * 100) + "%";
-  if (have >= T) { when.hidden = false; when.textContent = "Ja hi ets! 🥛"; why.textContent = `Tens ${nf(have, 0)} ${U} de ${nf(T, 0)}.`; return; }
-  if (!(apr > 0)) { why.textContent = `Tens ${nf(have, 0)} de ${nf(T, 0)} ${U}. Falta l'APR: posa el dipòsit i la data, o espera unes hores que el mesuri.`; return; }
+  if (have >= T) { when.hidden = false; when.textContent = "Ja hi ets! 🥛"; why.textContent = `Tens ${nf(have, 0)} ${U} de ${nf(T, 0)}.${pxTxt}`; return; }
+  if (!(apr > 0)) { why.textContent = `Tens ${nf(have, 0)} de ${nf(T, 0)} ${U}.${pxTxt} Falta l'APR: posa el dipòsit i la data, o espera que es llegeixi l'historial del pool.`; return; }
   const days = (T - have) / perDay;
   const d = new Date(Date.now() + days * 864e5);
   when.hidden = false;
   when.textContent = days > 365 * 100 ? "D'aquí a més de 100 anys" : `${d.toLocaleDateString("ca-ES", { day: "numeric", month: "long", year: "numeric" })} · ${days < 1 ? "menys d'1 dia" : nf(Math.ceil(days), 0) + " dies"}`;
-  why.textContent = `Tens ${nf(have, 0)} de ${nf(T, 0)} ${U} (${nf(have / T * 100, 1)}%). Amb l'APR ${src} (${nf(apr, 1)}%), guanyant cada dia el mateix que ara i si el preu de NIGHT no es mou.`;
+  why.textContent = `${goalPx ? "Tindries" : "Tens"} ${nf(have, 0)} de ${nf(T, 0)} ${U} (${nf(have / T * 100, 1)}%).${pxTxt} Amb l'APR ${SRC_TXT[src]} (${nf(apr, 1)}%), guanyant cada dia el mateix que ara` + (goalPx ? "." : " i si el preu de NIGHT no es mou.");
 }
+
+// ---------- evolució: valor de la posició al pool vs haver-ho guardat ----------
+let evoPts = [];
+function renderEvo(c) {
+  const card = $("evoCard");
+  if (!c || !c.lp) { card.hidden = true; return; }
+  const lp = c.lp, dep = c.dep, t0 = dep ? depTime() : null;
+  const N = unit === "night";
+  const pos = q => N ? 2 * lp * q.r / Math.sqrt(q.p) / 1e6 : 2 * lp * q.r * Math.sqrt(q.p) / 1e6;
+  const hod = q => dep ? (N ? dep.a / q.p + dep.b : dep.a + dep.b * q.p) : null;
+  let pts = allPts();
+  const from = t0 ?? (track?.t || 0);
+  pts = pts.filter(q => q.t > from);
+  if (t0 && dep) pts.unshift({ t: t0, r: Math.sqrt(dep.a * 1e6 * dep.b * 1e6) / lp, p: dep.a / dep.b });
+  if (pts.length > 160) { const step = pts.length / 160; pts = Array.from({ length: 160 }, (_, i) => pts[Math.floor(i * step)]).concat(pts[pts.length - 1]); }
+  evoPts = pts.map(q => ({ t: q.t, y: pos(q), h: hod(q) }));
+  card.hidden = evoPts.length < 2;
+  if (card.hidden) return;
+  const ys = evoPts.flatMap(q => q.h != null ? [q.y, q.h] : [q.y]);
+  let lo = Math.min(...ys), hi = Math.max(...ys);
+  const pad = (hi - lo) * 0.08 || hi * 0.01 || 1; lo -= pad; hi += pad;
+  const a = evoPts[0].t, b = evoPts[evoPts.length - 1].t;
+  const X = t => (t - a) / Math.max(1, b - a) * 300, Y = y => 146 - (y - lo) / (hi - lo) * 142;
+  evoPts.forEach(q => { q.x = X(q.t); });
+  const line = k => evoPts.filter(q => q[k] != null).map((q, i) => `${i ? "L" : "M"}${q.x.toFixed(1)},${Y(q[k]).toFixed(1)}`).join("");
+  const grid = [0.25, 0.5, 0.75].map(f => `<line x1="0" x2="300" y1="${4 + 142 * f}" y2="${4 + 142 * f}" stroke="var(--line)" stroke-width="1" vector-effect="non-scaling-stroke"/>`).join("");
+  $("evo").innerHTML = grid + (dep ? `<path d="${line("h")}" fill="none" stroke="var(--muted)" stroke-width="2" stroke-dasharray="5 4" vector-effect="non-scaling-stroke"/>` : "")
+    + `<path d="${line("y")}" fill="none" stroke="var(--moon)" stroke-width="2" vector-effect="non-scaling-stroke"/>`
+    + `<line id="evoCross" x1="0" x2="0" y1="0" y2="150" stroke="var(--muted)" stroke-width="1" vector-effect="non-scaling-stroke" visibility="hidden"/>`;
+  $("evoLegHodl").hidden = !dep;
+  const U = sym(), fmtY = y => nf(y, y < 100 ? 2 : 0) + " " + U;
+  $("evoMax").textContent = fmtY(hi); $("evoMin").textContent = fmtY(lo);
+  const dfmt = t => new Date(t).toLocaleDateString("ca-ES", { day: "numeric", month: "short" });
+  $("evoT0").textContent = dfmt(a); $("evoT1").textContent = "ara";
+  const last = evoPts[evoPts.length - 1];
+  $("evoNote").textContent = dep
+    ? `Ara: ${fmtY(last.y)} al pool i ${fmtY(last.h)} si ho haguessis guardat (${last.y >= last.h ? "+" : "−"}${nf(Math.abs(last.y - last.h), 2)} ${U} pel pool). Punts llegits de la cadena; suposa que no has afegit ni tret liquiditat.`
+    : "Des que l'app segueix la posició en aquest dispositiu. Posa el dipòsit per veure-ho des del primer dia i comparat amb haver-ho guardat.";
+}
+function evoHover(e) {
+  if (!evoPts.length) return;
+  const svg = $("evo"), box = svg.getBoundingClientRect();
+  const x = (e.clientX - box.left) / box.width * 300;
+  let q = evoPts[0];
+  for (const p of evoPts) if (Math.abs(p.x - x) < Math.abs(q.x - x)) q = p;
+  const cross = $("evoCross"); cross.setAttribute("x1", q.x); cross.setAttribute("x2", q.x); cross.setAttribute("visibility", "visible");
+  const U = sym(), tip = $("evoTip");
+  tip.hidden = false;
+  tip.innerHTML = `${new Date(q.t).toLocaleString("ca-ES", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}<br>Al pool: ${nf(q.y, 2)} ${U}` + (q.h != null ? `<br>Guardat: ${nf(q.h, 2)} ${U}` : "");
+  const px = q.x / 300 * box.width, w = tip.offsetWidth;
+  tip.style.left = Math.min(box.width - w / 2, Math.max(w / 2, px)) + "px";
+}
+function evoLeave() { $("evoTip").hidden = true; $("evoCross")?.setAttribute("visibility", "hidden"); }
 
 function lastTxHtml() {
   const p = state.pool;
@@ -528,8 +712,14 @@ function render() {
   $("price").textContent = `${nf(c.price, 4)} ₳` + (state.adaEur ? ` · ${nf(c.price * state.adaEur, 4)} €` : state.adaUsd ? ` · ${nf(c.price * state.adaUsd, 4)} $` : "");
   $("reserves").textContent = `${nf(p.Ra / 1e6, 0)} ₳ · ${nf(p.Rb / 1e6, 0)} NIGHT`;
   $("tvl").textContent = ada(2 * p.Ra / 1e6, 0) + (state.adaEur ? ` · ${eur(2 * p.Ra / 1e6 * state.adaEur)}` : "");
-  const apr = feeApr();
-  $("apr").textContent = !apr ? "mesurant…" : apr.pending ? `mesurant (${Math.round(apr.dt / 60000)} min)` : `${nf(apr.apr, 1)}% anual · ${Math.round(apr.dt / 3600e3)} h`;
+  const w7 = windowStats(7 * 864e5), w1 = windowStats(864e5);
+  $("apr").textContent = w7 || w1 ? [w1 && `24 h: ${nf(w1.apr, 1)}%`, w7 && `7 d: ${nf(w7.apr, 1)}%`].filter(Boolean).join(" · ") + " anual" : (histBusy ? "llegint l'historial…" : "mesurant…");
+  // Volum ≈ comissions per als LP ÷ comissió que es queden els LP (0,3% menys la part del protocol).
+  const lpFee = p.feeA / 1e4 * (1 - (p.feeShare || 0) / 1e4), tvlA = 2 * p.Ra / 1e6;
+  const vol = w => w && lpFee > 0 ? ada(tvlA * w.f / lpFee / (w.dt / 864e5) * (w === w7 ? 7 : 1), 0) : "—";
+  $("vol24").textContent = vol(w1); $("vol7").textContent = vol(w7);
+  const lpNow = myLp();
+  $("share7").textContent = w7?.from?.L && lpNow ? `${nf(lpNow / w7.from.L * 100, 4)}% (ara ${nf(lpNow / p.L * 100, 4)}%)` : "—";
   $("lastTx").innerHTML = lastTxHtml();
 
   const empty = $("heroEmpty");
@@ -539,7 +729,7 @@ function render() {
     $("posFiat").textContent = ""; $("lpAmt").textContent = "";
     empty.hidden = false;
     empty.textContent = cfg.addr ? (state.lpWallet === 0 ? "No s'han trobat tokens LP de NIGHT/ADA a la wallet. Si els tens en un farm, posa la quantitat a mà." : "Buscant els teus tokens LP…") : "Obre «La meva posició» a sota i posa l'adreça de la wallet.";
-    $("vsHodl").hidden = true; renderSpark(null); renderGoal(c);
+    $("vsHodl").hidden = true; renderSpark(null); renderGoal(c); renderEvo(null);
     return;
   }
 
@@ -580,7 +770,7 @@ function render() {
     }
   }
 
-  renderGoal(c);
+  renderGoal(c); renderEvo(c);
 
   if (c.cmp) {
     $("vsHodl").hidden = false;
@@ -611,6 +801,7 @@ async function tickPool() {
     }
     state.pool = pool; state.updated = Date.now(); state.error = null;
     pushHist(pool);
+    syncHistory();
     const lp = myLp();
     if (lp > 0 && (!track || track.lp !== lp)) { track = { t: Date.now(), r: growth(pool), lp }; store.set("track", track); }
   } catch (e) { state.error = e; if (e.code !== "nokey") console.error(e); }
@@ -665,6 +856,7 @@ $("form").addEventListener("submit", e => {
   store.set("cfg", cfg);
   if (cfg.addr !== prevAddr) state.lpWallet = null;
   if (deposit()) { mode = "deposit"; store.set("mode", mode); }
+  syncHistory(true);
   $("setup").open = false;
   if (cfg.key !== prevKey) { start(); return; }
   render(); tickWallet();
@@ -676,6 +868,11 @@ $("resetTrack").addEventListener("click", () => {
 });
 $("modeDeposit").addEventListener("click", () => { mode = "deposit"; store.set("mode", mode); render(); });
 $("modeTrack").addEventListener("click", () => { mode = "track"; store.set("mode", mode); render(); });
+document.querySelectorAll("[data-src]").forEach(b => b.addEventListener("click", () => { goalSrc = b.dataset.src; store.set("goalSrc", goalSrc); renderGoal(compute()); }));
+$("goalPx").addEventListener("input", e => { goalPx = Number(e.target.value); renderGoal(compute()); });
+$("evo").addEventListener("pointermove", evoHover);
+$("evo").addEventListener("pointerdown", evoHover);
+$("evo").addEventListener("pointerleave", evoLeave);
 $("goalN").value = goals[unit];
 $("goalN").addEventListener("input", e => { goals[unit] = e.target.value.trim(); store.set(unit === "night" ? "goal" : "goalAda", goals[unit]); renderGoal(compute()); });
 $("unitNight").addEventListener("click", () => { unit = "night"; store.set("unit", unit); render(); });
