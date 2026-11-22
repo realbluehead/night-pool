@@ -45,6 +45,13 @@ h1{font:600 19px/1.1 var(--display);margin:0;letter-spacing:-.01em}
 @keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--good) 60%,transparent)}100%{box-shadow:0 0 0 9px transparent}}
 @media (prefers-reduced-motion:reduce){.dot.live{animation:none}}
 .hero{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:20px 18px 16px;display:flex;flex-direction:column;gap:6px}
+.turron{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:16px 18px;display:flex;flex-direction:column;gap:8px}
+.turron .eur{font:700 clamp(36px,12vw,50px)/1 var(--display);letter-spacing:-.02em;color:var(--good);font-variant-numeric:tabular-nums}
+.turron .rates{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.turron .rates div{background:var(--bg);border-radius:10px;padding:8px 10px;min-width:0}
+.turron .rates b{display:block;font:600 16px var(--display);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.turron .rates span{font-size:12px;color:var(--muted)}
+.turron .foot{font-size:12px;color:var(--muted);margin:0}
 .aprcard{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:16px 18px;display:grid;grid-template-columns:1fr auto;gap:2px 12px;align-items:end}
 .aprcard .apr{font:700 clamp(30px,10vw,40px)/1 var(--display);letter-spacing:-.02em;color:var(--accent);font-variant-numeric:tabular-nums}
 .aprcard .apr small{font-size:.5em;margin-left:2px}
@@ -140,6 +147,17 @@ footer a{color:var(--accent)}
       </div>
     </div>
   </header>
+
+  <section class="turron" id="turron" hidden aria-labelledby="turronH">
+    <div class="eyebrow" id="turronH">Al turrón</div>
+    <div class="eur" id="turronEur">—</div>
+    <div class="rates">
+      <div><b id="turronDay">—</b><span>per dia</span></div>
+      <div><b id="turronMonth">—</b><span>per mes</span></div>
+      <div><b id="turronYear">—</b><span>per any</span></div>
+    </div>
+    <p class="foot" id="turronFoot"></p>
+  </section>
 
   <section class="aprcard" id="aprCard" hidden aria-label="APR des del dipòsit">
     <div>
@@ -610,6 +628,25 @@ function renderSpark(c) {
   svg.innerHTML = `<path d="${d}L298,56L2,56Z" fill="var(--moon)" fill-opacity=".14"/><path d="${d}" fill="none" stroke="var(--moon)" stroke-width="2" vector-effect="non-scaling-stroke"/><circle cx="${X(end.t)}" cy="${Y(end.y)}" r="3" fill="var(--moon)"/>`;
 }
 
+// Al turrón: comissions guanyades en euros (al preu d'ara) i la mitjana per dia, mes i any.
+function renderTurron(c) {
+  const box = $("turron"), E = state.adaEur;
+  let feeA = null, days = null, since = "";
+  if (c?.cmp?.apr) { feeA = c.cmp.feeV; days = c.cmp.apr.days; since = "des del dipòsit"; }
+  else if (c?.fees && mode === "track" && c.since) { feeA = c.fees.v; days = (Date.now() - c.since) / 864e5; since = "des que l'app la segueix"; }
+  box.hidden = feeA == null || !E;
+  if (box.hidden) return;
+  const eurF = x => x.toLocaleString("ca-ES", { style: "currency", currency: "EUR", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const tot = feeA * E, perDay = days > 0 ? tot / days : null;
+  $("turronEur").textContent = eurF(tot);
+  $("turronDay").textContent = perDay != null ? eurF(perDay) : "—";
+  $("turronMonth").textContent = perDay != null ? eurF(perDay * 365 / 12) : "—";
+  $("turronYear").textContent = perDay != null ? eurF(perDay * 365) : "—";
+  const net = c.cmp ? c.cmp.net * E : null;
+  $("turronFoot").textContent = `Comissions ${since} (${nf(days, days < 2 ? 1 : 0)} dies), a ${nf(E, 4)} €/ADA. Mitjana real fins ara.`
+    + (net != null ? ` Restant-hi la pèrdua impermanent, vs haver-ho guardat: ${net >= 0 ? "+" : "−"}${eurF(Math.abs(net))}.` : "");
+}
+
 function deltaText() { const v = inU(state.lastGain.v); return `+${nf(v, 6)} ${sym()} ${ago(Date.now() - state.lastGain.t)}`; }
 
 // Cuento de la lechera: quan arribes a l'objectiu guanyant cada dia el mateix que ara.
@@ -753,7 +790,7 @@ function render() {
     $("posFiat").textContent = ""; $("lpAmt").textContent = "";
     empty.hidden = false;
     empty.textContent = cfg.addr ? (state.lpWallet === 0 ? "No s'han trobat tokens LP de NIGHT/ADA a la wallet. Si els tens en un farm, posa la quantitat a mà." : "Buscant els teus tokens LP…") : "Obre «La meva posició» a sota i posa l'adreça de la wallet.";
-    $("vsHodl").hidden = true; renderSpark(null); renderGoal(c); renderEvo(null);
+    $("vsHodl").hidden = true; renderSpark(null); renderGoal(c); renderEvo(null); renderTurron(null);
     return;
   }
 
@@ -794,7 +831,7 @@ function render() {
     }
   }
 
-  renderGoal(c); renderEvo(c);
+  renderGoal(c); renderEvo(c); renderTurron(c);
 
   if (c.cmp) {
     $("vsHodl").hidden = false;
