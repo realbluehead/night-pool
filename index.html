@@ -51,7 +51,15 @@ h1{font:600 19px/1.1 var(--display);margin:0;letter-spacing:-.01em}
 .turron .rates div{background:var(--bg);border-radius:10px;padding:8px 10px;min-width:0}
 .turron .rates b{display:block;font:600 16px var(--display);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 .turron .rates span{font-size:12px;color:var(--muted)}
+#vsHodl dd .fx{display:block;font-size:12px;font-weight:400;color:var(--muted)}
+#vsHodl .verdict{margin:10px 0 0;padding:10px 12px;border-radius:10px;background:var(--bg);font-size:14px}
 .turron .foot{font-size:12px;color:var(--muted);margin:0}
+.turron .split{margin:4px 0 0;padding:10px 0 0;border-top:1px solid var(--line);display:grid;grid-template-columns:1fr auto;gap:4px 12px;font-size:14px}
+.turron .split dt{color:var(--muted)}
+.turron .split dd{margin:0;text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.turron .split .tot{color:var(--ink);font-weight:600;padding-top:6px;border-top:1px solid var(--line)}
+.turron .split dd.tot{font:700 18px var(--display)}
+.turron .split .pos{color:var(--good)}.turron .split .neg{color:var(--bad)}
 .aprcard{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:16px 18px;display:grid;grid-template-columns:1fr auto;gap:2px 12px;align-items:end}
 .aprcard .apr{font:700 clamp(30px,10vw,40px)/1 var(--display);letter-spacing:-.02em;color:var(--accent);font-variant-numeric:tabular-nums}
 .aprcard .apr small{font-size:.5em;margin-left:2px}
@@ -156,6 +164,12 @@ footer a{color:var(--accent)}
       <div><b id="turronMonth">—</b><span>per mes</span></div>
       <div><b id="turronYear">—</b><span>per any</span></div>
     </div>
+    <dl class="split" id="turronSplit" hidden>
+      <dt>Comissions</dt><dd id="tsFee">—</dd>
+      <dt>Pèrdua impermanent</dt><dd id="tsIl">—</dd>
+      <dt>Preu de l'ADA i el NIGHT</dt><dd id="tsMkt">—</dd>
+      <dt class="tot">Resultat total</dt><dd class="tot" id="tsTot">—</dd>
+    </dl>
     <p class="foot" id="turronFoot"></p>
   </section>
 
@@ -233,6 +247,7 @@ footer a{color:var(--accent)}
       <dt>Comissions</dt><dd id="feesAgain">—</dd>
       <dt><strong>Resultat net</strong></dt><dd id="net"><strong>—</strong></dd>
     </dl>
+    <p class="verdict" id="hodlVerdict" hidden></p>
   </section>
 
   <section class="card">
@@ -524,6 +539,21 @@ async function fetchAdaPrice() {
   } catch {}
 }
 
+// Preu de l'ADA en € el dia del dipòsit (CoinGecko, preu de les 00:00 UTC d'aquell dia). Es desa per data.
+let depEurBusy = false;
+async function fetchDepEur() {
+  const d = cfg.depDate; if (!d || depEurBusy) return;
+  const have = store.get("depEur");
+  if (have?.date === d && have.eur) { state.depEur = have.eur; return; }
+  state.depEur = null; depEurBusy = true;
+  try {
+    const [y, m, dd] = d.split("-");
+    const j = await fetch(`https://api.coingecko.com/api/v3/coins/cardano/history?date=${dd}-${m}-${y}&localization=false`).then(r => r.ok ? r.json() : null);
+    const e = j?.market_data?.current_price?.eur;
+    if (e > 0) { state.depEur = e; store.set("depEur", { date: d, eur: e }); render(); }
+  } catch {} finally { depEurBusy = false; }
+}
+
 async function fetchWalletLp(addr) {
   addr = addr.trim();
   if (!addr) return null;
@@ -642,9 +672,19 @@ function renderTurron(c) {
   $("turronDay").textContent = perDay != null ? eurF(perDay) : "—";
   $("turronMonth").textContent = perDay != null ? eurF(perDay * 365 / 12) : "—";
   $("turronYear").textContent = perDay != null ? eurF(perDay * 365) : "—";
-  const net = c.cmp ? c.cmp.net * E : null;
+  // Desglossament en €: el dipòsit valia 2 × ADA posats al preu de l'ADA d'aquell dia.
+  // Ara = comissions + pèrdua impermanent + el que hauries guanyat o perdut només guardant-ho.
+  const E0 = state.depEur, sp = $("turronSplit"), cm = c.cmp;
+  const signE = x => `${x >= 0 ? "+" : "−"}${eurF(Math.abs(x))}`;
+  const put = (id, x) => { const el = $(id); el.textContent = signE(x); el.classList.toggle("pos", x > 0.005); el.classList.toggle("neg", x < -0.005); };
+  sp.hidden = !(cm?.apr && E0);
+  if (!sp.hidden) {
+    const dep0 = 2 * c.dep.a * E0, mkt = cm.hodl * E - dep0;
+    put("tsFee", tot); put("tsIl", cm.il * E); put("tsMkt", mkt); put("tsTot", cm.value * E - dep0);
+  }
   $("turronFoot").textContent = `Comissions ${since} (${nf(days, days < 2 ? 1 : 0)} dies), a ${nf(E, 4)} €/ADA. Mitjana real fins ara.`
-    + (net != null ? ` Restant-hi la pèrdua impermanent, vs haver-ho guardat: ${net >= 0 ? "+" : "−"}${eurF(Math.abs(net))}.` : "");
+    + (!sp.hidden ? ` El dipòsit valia ${eurF(2 * c.dep.a * E0)} (${nf(E0, 4)} €/ADA el ${new Date(cfg.depDate + "T12:00:00").toLocaleDateString("ca-ES")}); ara val ${eurF(cm.value * E)}.`
+       : cm ? ` Restant-hi la pèrdua impermanent, vs haver-ho guardat: ${signE(cm.net * E)}.` : "");
 }
 
 function deltaText() { const v = inU(state.lastGain.v); return `+${nf(v, 6)} ${sym()} ${ago(Date.now() - state.lastGain.t)}`; }
@@ -836,18 +876,26 @@ function render() {
   if (c.cmp) {
     $("vsHodl").hidden = false;
     const cls = (el, v) => { el.className = v > 0 ? "pos" : v < 0 ? "neg" : ""; };
-    $("hodl").textContent = fU(c.cmp.hodl);
-    $("nowVal").textContent = fU(c.cmp.value);
-    $("il").textContent = sU(c.cmp.il); cls($("il"), c.cmp.il);
-    $("feesAgain").textContent = sU(c.cmp.feeV); cls($("feesAgain"), c.cmp.feeV);
-    $("net").innerHTML = `<strong>${sU(c.cmp.net)}</strong>` + (state.adaEur ? `<br>${eur(c.cmp.net * state.adaEur)}` : ""); cls($("net"), c.cmp.net);
+    // Cada fila també en € i $ (al preu d'ara de l'ADA), per veure si el pool aporta valor en diners.
+    const sg = (x, f) => `${x >= 0 ? "+" : "−"}${f(Math.abs(x))}`;
+    const fx = (x, signed) => { const p = []; if (state.adaEur) p.push(signed ? sg(x * state.adaEur, eur) : eur(x * state.adaEur)); if (state.adaUsd) p.push(signed ? sg(x * state.adaUsd, usd) : usd(x * state.adaUsd)); return p.length ? `<span class="fx">${p.join(" · ")}</span>` : ""; };
+    const row = (id, txt, ada, signed, strong) => { $(id).innerHTML = (strong ? `<strong>${txt}</strong>` : txt) + fx(ada, signed); };
+    row("hodl", fU(c.cmp.hodl), c.cmp.hodl);
+    row("nowVal", fU(c.cmp.value), c.cmp.value);
+    row("il", sU(c.cmp.il), c.cmp.il, true); cls($("il"), c.cmp.il);
+    row("feesAgain", sU(c.cmp.feeV), c.cmp.feeV, true); cls($("feesAgain"), c.cmp.feeV);
+    row("net", sU(c.cmp.net), c.cmp.net, true, true); cls($("net"), c.cmp.net);
+    const v = $("hodlVerdict"), n = c.cmp.net, money = [state.adaEur && eur(Math.abs(n) * state.adaEur), state.adaUsd && usd(Math.abs(n) * state.adaUsd)].filter(Boolean).join(" / ");
+    v.hidden = !money;
+    if (money) v.textContent = n >= 0 ? `Sí que hi aporta valor: tenir-ho al pool et dona ${money} més que haver-ho deixat fora.`
+                                     : `De moment no hi aporta valor: tenir-ho al pool et dona ${money} menys que haver-ho deixat fora.`;
   } else $("vsHodl").hidden = true;
 }
 
 // ---------- loop ----------
 async function tickPool() {
   try {
-    const [pool] = await Promise.all([fetchPool(), fetchAdaPrice()]);
+    const [pool] = await Promise.all([fetchPool(), fetchAdaPrice(), fetchDepEur()]);
     const changed = !state.pool || state.pool.tx !== pool.tx;
     if (changed) {
       state.lastTxTime = await fetchTxTime(pool.tx);
