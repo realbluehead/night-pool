@@ -107,6 +107,8 @@ svg.spark{width:100%;height:56px;display:block;margin-top:6px}
 .evo .legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--muted);margin-bottom:8px}
 .evo .legend i{display:inline-block;width:14px;height:0;border-top:2px solid var(--moon);vertical-align:middle;margin-right:6px}
 .evo .legend i.hodl{border-top:2px dashed var(--muted)}
+#rateCard .legend i{border-top-color:var(--accent)}
+.evo .legend i.bar{height:10px;width:8px;border:0;background:var(--accent);opacity:.35;border-radius:2px}
 .evo .yl{position:absolute;right:0;font:11px var(--mono);color:var(--muted);background:var(--surface);padding:0 2px}
 .evo .tip{position:absolute;top:8px;pointer-events:none;background:var(--ink);color:var(--surface);font:12px/1.4 var(--mono);padding:6px 8px;border-radius:8px;white-space:nowrap;transform:translateX(-50%)}
 .evo .note{font-size:12px;color:var(--muted);margin:8px 0 0}
@@ -229,6 +231,24 @@ footer a{color:var(--accent)}
     </div>
     <div class="axis"><span id="evoT0"></span><span id="evoT1"></span></div>
     <p class="note" id="evoNote"></p>
+  </section>
+
+  <section class="card evo" id="rateCard" hidden aria-labelledby="rateH">
+    <h2 id="rateH">Evolució del rendiment</h2>
+    <div class="seg" id="rateSeg" role="group" aria-label="Què es mostra">
+      <button type="button" data-rm="apr" aria-pressed="true">APR</button>
+      <button type="button" data-rm="unit" aria-pressed="false" id="rmUnit">NIGHT/dia</button>
+      <button type="button" data-rm="eur" aria-pressed="false">€/dia</button>
+      <button type="button" data-rm="usd" aria-pressed="false">$/dia</button>
+    </div>
+    <div class="legend" style="margin-top:10px"><span><i class="bar"></i>Cada dia</span><span><i></i>Mitjana de 7 dies</span></div>
+    <div class="plot">
+      <svg id="rate" viewBox="0 0 300 150" preserveAspectRatio="none" role="img" aria-label="Rendiment per dia al llarg del temps"></svg>
+      <span class="yl" id="rateMax" style="top:0"></span><span class="yl" id="rateMin" style="bottom:0"></span>
+      <div class="tip" id="rateTip" hidden></div>
+    </div>
+    <div class="axis"><span id="rateT0"></span><span>ara</span></div>
+    <p class="note" id="rateNote"></p>
   </section>
 
   <div class="grid">
@@ -495,15 +515,16 @@ async function syncHistory(force) {
   histBusy = true; pageCache = new Map();
   try {
     const now = Date.now(), want = [[now - 864e5, 45 * 60e3], [now - 7 * 864e5, 4 * 3600e3]];
-    const t0 = depTime();
-    if (t0 && t0 < now - 864e5) {
-      const span = now - t0, n = Math.min(16, Math.max(2, Math.ceil(span / 864e5)));
-      for (let i = 0; i < n; i++) want.push([t0 + span * i / n, span / n / 2]);
+    // Un punt per dia des del dipòsit (o els últims 30 dies), per al gràfic del rendiment. Queden desats.
+    const t0 = depTime() ?? now - 30 * 864e5;
+    if (t0 < now - 864e5) {
+      const span = now - t0, n = Math.min(120, Math.max(2, Math.ceil(span / 864e5)));
+      for (let i = 0; i < n; i++) want.push([t0 + span * i / n, span / n / 3]);
     }
     for (const [t, tol] of want) {
       if (allPts().some(q => Math.abs(q.t - t) <= tol)) continue;
       const q = await pointAt(t);
-      if (q && !hpts.some(h => h.t === q.t)) { hpts.push(q); hpts.sort((a, b) => a.t - b.t); hpts = hpts.slice(-200); store.set("hpts", hpts); render(); }
+      if (q && !hpts.some(h => h.t === q.t)) { hpts.push(q); hpts.sort((a, b) => a.t - b.t); hpts = hpts.slice(-500); store.set("hpts", hpts); render(); }
     }
     histAt = Date.now();
   } catch (e) { console.warn("historial", e); }
@@ -537,6 +558,26 @@ async function fetchAdaPrice() {
     const j = await fetch("https://agg-api.minswap.org/aggregator/ada-price?currency=usd").then(r => r.ok ? r.json() : null);
     if (j?.value?.price) { state.adaUsd = j.value.price; priceAt = Date.now(); }
   } catch {}
+}
+
+// Preu diari de l'ADA en € i $ (CoinGecko) per passar el rendiment de cada dia a diners d'aquell dia.
+let fxHist = store.get("fxHist", null), fxBusy = false;
+async function fetchFxHist() {
+  const t0 = depTime() ?? Date.now() - 30 * 864e5;
+  const days = Math.min(365, Math.ceil((Date.now() - t0) / 864e5) + 2), today = new Date().toISOString().slice(0, 10);
+  if (fxBusy || (fxHist?.day === today && fxHist.days >= days)) return;
+  fxBusy = true;
+  try {
+    const g = cur => fetch(`https://api.coingecko.com/api/v3/coins/cardano/market_chart?vs_currency=${cur}&days=${days}&interval=daily`).then(r => r.ok ? r.json() : null);
+    const [e, u] = await Promise.all([g("eur"), g("usd")]);
+    if (e?.prices?.length) { fxHist = { day: today, days, eur: e.prices, usd: u?.prices || [] }; store.set("fxHist", fxHist); render(); }
+  } catch {} finally { fxBusy = false; }
+}
+function fxAt(cur, t) {
+  if (Date.now() - t < 12 * 3600e3) { const now = cur === "eur" ? state.adaEur : state.adaUsd; if (now) return now; }
+  const a = fxHist?.[cur]; if (!a?.length) return null;
+  let best = a[0]; for (const x of a) if (Math.abs(x[0] - t) < Math.abs(best[0] - t)) best = x;
+  return Math.abs(best[0] - t) < 2 * 864e5 ? best[1] : null;
 }
 
 // Preu de l'ADA en € el dia del dipòsit (CoinGecko, preu de les 00:00 UTC d'aquell dia). Es desa per data.
@@ -785,6 +826,69 @@ function evoHover(e) {
 }
 function evoLeave() { $("evoTip").hidden = true; $("evoCross")?.setAttribute("visibility", "hidden"); }
 
+// Rendiment dia a dia: entre punts separats ~1 dia, APR del pool i el que t'ha donat a tu aquell dia.
+let rateMode = store.get("rateMode", "apr"), ratePts = [];
+function dailySeries(lp) {
+  const from = depTime() ?? Date.now() - 30 * 864e5;
+  const pts = allPts().filter(q => q.t >= from - 6 * 3600e3);
+  const out = [];
+  let a = pts[0];
+  for (const b of pts.slice(1)) {
+    const dt = b.t - a.t, last = b === pts[pts.length - 1];
+    if (dt < 20 * 3600e3 && !(last && dt >= 12 * 3600e3)) continue;
+    const f = Math.max(0, 1 - a.r / b.r), adaDay = 2 * lp * b.r * Math.sqrt(b.p) / 1e6 * f * 864e5 / dt, mid = (a.t + b.t) / 2;
+    const e = fxAt("eur", mid), u = fxAt("usd", mid);
+    out.push({ t: b.t, from: a.t, apr: f * 365 * 864e5 / dt * 100, ada: adaDay, night: adaDay / b.p,
+               eur: e ? adaDay * e : null, usd: u ? adaDay * u : null });
+    a = b;
+  }
+  return out;
+}
+function renderRate(c) {
+  const card = $("rateCard");
+  const lp = c?.lp || 0, N = unit === "night";
+  $("rmUnit").textContent = (N ? "NIGHT" : "ADA") + "/dia";
+  let mode = rateMode;
+  if (!lp && mode !== "apr") mode = "apr";
+  document.querySelectorAll("#rateSeg [data-rm]").forEach(b => { b.setAttribute("aria-pressed", b.dataset.rm === mode); b.disabled = b.dataset.rm !== "apr" && !lp; });
+  const key = mode === "unit" ? (N ? "night" : "ada") : mode;
+  const ser = state.pool ? dailySeries(lp).filter(q => q[key] != null) : [];
+  card.hidden = ser.length < 2;
+  if (card.hidden) { ratePts = []; return; }
+  ser.forEach((q, i) => { const w = ser.slice(Math.max(0, i - 6), i + 1); q.v = q[key]; q.avg = w.reduce((s, x) => s + x[key], 0) / w.length; });
+  const fmt = mode === "apr" ? y => nf(y, 1) + "%" : mode === "eur" ? y => nf(y, 2) + " €" : mode === "usd" ? y => nf(y, 2) + " $" : y => nf(y, y < 10 ? 2 : 1) + " " + (N ? "NIGHT" : "₳");
+  const hi = Math.max(...ser.map(q => Math.max(q.v, q.avg))) * 1.08 || 1;
+  const n = ser.length, bw = 300 / n, Y = y => 146 - y / hi * 142;
+  ratePts = ser.map((q, i) => ({ ...q, x: (i + 0.5) * bw }));
+  const grid = [0.25, 0.5, 0.75].map(f => `<line x1="0" x2="300" y1="${4 + 142 * f}" y2="${4 + 142 * f}" stroke="var(--line)" stroke-width="1" vector-effect="non-scaling-stroke"/>`).join("");
+  const bars = ratePts.map(q => `<rect x="${(q.x - bw * 0.36).toFixed(2)}" width="${(bw * 0.72).toFixed(2)}" y="${Y(q.v).toFixed(1)}" height="${(146 - Y(q.v)).toFixed(1)}" rx="1" fill="var(--accent)" fill-opacity=".35"/>`).join("");
+  const line = ratePts.map((q, i) => `${i ? "L" : "M"}${q.x.toFixed(1)},${Y(q.avg).toFixed(1)}`).join("");
+  $("rate").innerHTML = grid + bars + `<path d="${line}" fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke"/>`
+    + `<line id="rateCross" x1="0" x2="0" y1="0" y2="150" stroke="var(--muted)" stroke-width="1" vector-effect="non-scaling-stroke" visibility="hidden"/>`;
+  $("rateMax").textContent = fmt(hi); $("rateMin").textContent = fmt(0);
+  $("rateT0").textContent = new Date(ser[0].from).toLocaleDateString("ca-ES", { day: "numeric", month: "short" });
+  const first = ratePts[Math.min(6, n - 1)], last = ratePts[n - 1], ch = first.avg ? (last.avg / first.avg - 1) * 100 : 0;
+  const trend = n < 8 ? "Encara hi ha pocs dies per veure una tendència clara."
+    : Math.abs(ch) < 5 ? `Estable: la mitjana de 7 dies és ${fmt(last.avg)}, gairebé igual que fa ${n - 7} dies (${fmt(first.avg)}).`
+    : `${ch > 0 ? "Puja" : "Baixa"}: la mitjana de 7 dies ha passat de ${fmt(first.avg)} a ${fmt(last.avg)} (${ch > 0 ? "+" : "−"}${nf(Math.abs(ch), 0)}%).`;
+  const why = mode === "apr" ? " L'APR depèn del volum del pool: més compres i vendes, més comissions."
+    : mode === "unit" ? " Amb la teva part actual del pool."
+    : " Al preu de l'ADA de cada dia, així que també es mou si l'ADA puja o baixa.";
+  $("rateNote").textContent = trend + why;
+}
+function rateHover(e) {
+  if (!ratePts.length) return;
+  const box = $("rate").getBoundingClientRect(), x = (e.clientX - box.left) / box.width * 300;
+  let q = ratePts[0]; for (const p of ratePts) if (Math.abs(p.x - x) < Math.abs(q.x - x)) q = p;
+  const cr = $("rateCross"); cr.setAttribute("x1", q.x); cr.setAttribute("x2", q.x); cr.setAttribute("visibility", "visible");
+  const N = unit === "night", m = rateMode === "unit" ? (N ? "night" : "ada") : rateMode;
+  const f = y => m === "apr" ? nf(y, 1) + "%" : m === "eur" ? nf(y, 2) + " €" : m === "usd" ? nf(y, 2) + " $" : nf(y, 2) + (N ? " NIGHT" : " ₳");
+  const tip = $("rateTip"); tip.hidden = false;
+  tip.innerHTML = `${new Date(q.t).toLocaleDateString("ca-ES", { day: "numeric", month: "short" })}<br>Dia: ${f(q.v)}<br>Mitjana 7 d: ${f(q.avg)}`;
+  const px = q.x / 300 * box.width, w = tip.offsetWidth;
+  tip.style.left = Math.min(box.width - w / 2, Math.max(w / 2, px)) + "px";
+}
+
 function lastTxHtml() {
   const p = state.pool;
   return `<a href="https://cardanoscan.io/transaction/${p.tx}" target="_blank" rel="noopener" style="color:var(--accent)">${state.lastTxTime ? ago(Date.now() - state.lastTxTime) : p.tx.slice(0, 8) + "…"}</a>`;
@@ -830,7 +934,7 @@ function render() {
     $("posFiat").textContent = ""; $("lpAmt").textContent = "";
     empty.hidden = false;
     empty.textContent = cfg.addr ? (state.lpWallet === 0 ? "No s'han trobat tokens LP de NIGHT/ADA a la wallet. Si els tens en un farm, posa la quantitat a mà." : "Buscant els teus tokens LP…") : "Obre «La meva posició» a sota i posa l'adreça de la wallet.";
-    $("vsHodl").hidden = true; renderSpark(null); renderGoal(c); renderEvo(null); renderTurron(null);
+    $("vsHodl").hidden = true; renderSpark(null); renderGoal(c); renderEvo(null); renderTurron(null); renderRate(c);
     return;
   }
 
@@ -871,7 +975,7 @@ function render() {
     }
   }
 
-  renderGoal(c); renderEvo(c); renderTurron(c);
+  renderGoal(c); renderEvo(c); renderTurron(c); renderRate(c);
 
   if (c.cmp) {
     $("vsHodl").hidden = false;
@@ -895,7 +999,7 @@ function render() {
 // ---------- loop ----------
 async function tickPool() {
   try {
-    const [pool] = await Promise.all([fetchPool(), fetchAdaPrice(), fetchDepEur()]);
+    const [pool] = await Promise.all([fetchPool(), fetchAdaPrice(), fetchDepEur(), fetchFxHist()]);
     const changed = !state.pool || state.pool.tx !== pool.tx;
     if (changed) {
       state.lastTxTime = await fetchTxTime(pool.tx);
@@ -988,6 +1092,10 @@ $("goalPx").addEventListener("input", e => { goalPx = Number(e.target.value); re
 $("evo").addEventListener("pointermove", evoHover);
 $("evo").addEventListener("pointerdown", evoHover);
 $("evo").addEventListener("pointerleave", evoLeave);
+$("rate").addEventListener("pointermove", rateHover);
+$("rate").addEventListener("pointerdown", rateHover);
+$("rate").addEventListener("pointerleave", () => { $("rateTip").hidden = true; $("rateCross")?.setAttribute("visibility", "hidden"); });
+document.querySelectorAll("#rateSeg [data-rm]").forEach(b => b.addEventListener("click", () => { rateMode = b.dataset.rm; store.set("rateMode", rateMode); render(); }));
 $("goalN").value = goals[unit];
 $("goalN").addEventListener("input", e => { goals[unit] = e.target.value.trim(); store.set(unit === "night" ? "goal" : "goalAda", goals[unit]); renderGoal(compute()); });
 $("unitNight").addEventListener("click", () => { unit = "night"; store.set("unit", unit); render(); });
