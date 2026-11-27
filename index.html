@@ -132,6 +132,34 @@ input:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid
 .btn.ghost{background:transparent;color:var(--accent)}
 .msg{font-size:13px;color:var(--bad);margin:0}
 .empty{color:var(--muted);font-size:14px;margin:4px 0 0}
+/* Panells: una columna al mòbil; a tauleta i ordinador, columnes amb encaix tipus mosaic. */
+#panels{display:flex;flex-direction:column;gap:14px}
+#panels>[data-panel]{position:relative;min-width:0}
+.hrow{display:flex;align-items:center;gap:6px}
+.arrange{font:600 15px var(--body);line-height:1;border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:8px;width:28px;height:26px;cursor:pointer;padding:0}
+.arrange[aria-pressed="true"]{background:var(--accent);color:#fff;border-color:var(--accent)}
+.pbar{display:none}
+body.editing #panels>[data-panel]{outline:2px dashed color-mix(in srgb,var(--accent) 55%,transparent);outline-offset:3px;border-radius:18px}
+body.editing #panels>[data-panel]>:not(.pbar){pointer-events:none;opacity:.55}
+body.editing .pbar{display:flex;position:absolute;top:-10px;right:8px;z-index:5;align-items:center;gap:2px;background:var(--accent);color:#fff;border-radius:999px;padding:2px 4px;box-shadow:0 2px 6px rgba(0,0,0,.2);font:600 12px var(--body)}
+.pbar button{border:0;background:transparent;color:inherit;font:600 14px var(--body);min-width:30px;height:30px;border-radius:999px;cursor:pointer;padding:0 6px}
+.pbar button:disabled{opacity:.35;cursor:default}
+.pbar .grip{cursor:grab;touch-action:none;font-size:16px}
+.pbar .nm{padding:0 4px;white-space:nowrap;max-width:140px;overflow:hidden;text-overflow:ellipsis}
+.pbar .wide{display:none}
+[data-panel].dragging{opacity:.4}
+body.dragging{user-select:none;-webkit-user-select:none}
+.editbar{position:sticky;bottom:12px;z-index:10;display:flex;flex-wrap:wrap;align-items:center;gap:8px;background:var(--ink);color:var(--surface);border-radius:14px;padding:10px 12px;font-size:13px;box-shadow:0 6px 20px rgba(0,0,0,.25)}
+.editbar span{flex:1 1 180px}
+.editbar button{font:600 13px var(--body);border:0;border-radius:9px;padding:8px 12px;cursor:pointer;background:color-mix(in srgb,var(--surface) 18%,transparent);color:inherit}
+.editbar button.primary{background:var(--accent);color:#fff}
+@media (min-width:760px){
+  main{max-width:1440px}
+  #panels{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));grid-auto-rows:2px;column-gap:16px;row-gap:0}
+  #panels>[data-panel]{align-self:start;margin-bottom:16px}
+  #panels>[data-panel].is-wide{grid-column:span 2}
+  .pbar .wide{display:inline-block}
+}
 footer{font-size:12px;color:var(--muted);text-align:center;line-height:1.6}
 footer a{color:var(--accent)}
 </style>
@@ -151,14 +179,16 @@ footer a{color:var(--accent)}
     </div>
     <div class="hright">
       <button type="button" class="status" id="refresh" title="Actualitza ara" aria-live="polite"><span class="dot" id="dot"></span><span id="ago">connectant…</span></button>
+      <div class="hrow"><button type="button" class="arrange" id="arrange" aria-pressed="false" title="Ordena els panells" aria-label="Ordena els panells">⇅</button>
       <div class="seg" role="group" aria-label="Unitat dels guanys">
         <button type="button" id="unitNight" aria-pressed="true">NIGHT</button>
         <button type="button" id="unitAda" aria-pressed="false">ADA</button>
-      </div>
+      </div></div>
     </div>
   </header>
 
-  <section class="turron" id="turron" hidden aria-labelledby="turronH">
+  <div id="panels">
+  <section data-panel="turron" data-name="Al turrón" class="turron" id="turron" hidden aria-labelledby="turronH">
     <div class="eyebrow" id="turronH">Al turrón</div>
     <div class="eur" id="turronEur">—</div>
     <div class="rates">
@@ -175,7 +205,7 @@ footer a{color:var(--accent)}
     <p class="foot" id="turronFoot"></p>
   </section>
 
-  <section class="aprcard" id="aprCard" hidden aria-label="APR des del dipòsit">
+  <section data-panel="apr" data-name="APR" class="aprcard" id="aprCard" hidden aria-label="APR des del dipòsit">
     <div>
       <div class="eyebrow">APR des del dipòsit</div>
       <div class="apr" id="aprBig">—</div>
@@ -184,7 +214,7 @@ footer a{color:var(--accent)}
     <div class="foot" id="aprFoot"></div>
   </section>
 
-  <div class="hero">
+  <div data-panel="hero" data-name="Comissions" class="hero">
     <div class="eyebrow" id="feesLabel">Comissions guanyades</div>
     <div class="big" id="feesBig">—</div>
     <div class="delta" id="delta" hidden></div>
@@ -199,7 +229,7 @@ footer a{color:var(--accent)}
     <p class="msg" id="poolErr" hidden></p>
   </div>
 
-  <section class="card goal" aria-labelledby="goalH">
+  <section data-panel="goal" data-name="Cuento de la lechera" class="card goal" aria-labelledby="goalH">
     <h2 id="goalH">Cuento de la lechera</h2>
     <label for="goalN"><span id="goalQ">Quants NIGHT vols tenir?</span>
       <input id="goalN" inputmode="decimal" placeholder="ex. 10000">
@@ -221,7 +251,7 @@ footer a{color:var(--accent)}
     <p class="why" id="goalWhy"></p>
   </section>
 
-  <section class="card evo" id="evoCard" hidden aria-labelledby="evoH">
+  <section data-panel="evo" data-name="Evolució posició" class="card evo" id="evoCard" hidden aria-labelledby="evoH">
     <h2 id="evoH">Evolució de la teva posició</h2>
     <div class="legend"><span><i></i>Al pool</span><span id="evoLegHodl"><i class="hodl"></i>Si ho haguessis guardat</span></div>
     <div class="plot">
@@ -233,7 +263,7 @@ footer a{color:var(--accent)}
     <p class="note" id="evoNote"></p>
   </section>
 
-  <section class="card evo" id="rateCard" hidden aria-labelledby="rateH">
+  <section data-panel="rate" data-name="Rendiment" class="card evo" id="rateCard" hidden aria-labelledby="rateH">
     <h2 id="rateH">Evolució del rendiment</h2>
     <div class="seg" id="rateSeg" role="group" aria-label="Què es mostra">
       <button type="button" data-rm="apr" aria-pressed="true">APR</button>
@@ -251,14 +281,14 @@ footer a{color:var(--accent)}
     <p class="note" id="rateNote"></p>
   </section>
 
-  <div class="grid">
+  <div data-panel="tiles" data-name="Posició" class="grid">
     <div class="tile"><div class="k">La teva posició</div><div class="v" id="posValue">—</div><div class="n" id="posFiat"></div></div>
     <div class="tile"><div class="k">Part del pool</div><div class="v" id="share">—</div><div class="n" id="lpAmt"></div></div>
     <div class="tile"><div class="k">ADA al pool</div><div class="v" id="myAda">—</div><div class="n">la teva part</div></div>
     <div class="tile"><div class="k">NIGHT al pool</div><div class="v" id="myNight">—</div><div class="n">la teva part</div></div>
   </div>
 
-  <section class="card" id="vsHodl" hidden>
+  <section data-panel="hodl" data-name="Comparació" class="card" id="vsHodl" hidden>
     <h2>Comparat amb no haver-ho posat al pool</h2>
     <dl>
       <dt>Valor si ho haguessis guardat</dt><dd id="hodl">—</dd>
@@ -270,7 +300,7 @@ footer a{color:var(--accent)}
     <p class="verdict" id="hodlVerdict" hidden></p>
   </section>
 
-  <section class="card">
+  <section class="card" data-panel="pool" data-name="Pool">
     <h2>Pool</h2>
     <dl>
       <dt>Preu NIGHT</dt><dd id="price">—</dd>
@@ -284,7 +314,7 @@ footer a{color:var(--accent)}
     </dl>
   </section>
 
-  <section class="card">
+  <section class="card" data-panel="setup" data-name="La meva posició">
     <details id="setup">
       <summary>La meva posició</summary>
       <form id="form" autocomplete="off">
@@ -319,6 +349,13 @@ footer a{color:var(--accent)}
       </form>
     </details>
   </section>
+  </div>
+
+  <div class="editbar" id="editbar" hidden>
+    <span>Arrossega <b>⠿</b> o fes servir ↑ ↓ per moure els panells.</span>
+    <button type="button" id="layoutReset">Ordre inicial</button>
+    <button type="button" id="layoutDone" class="primary">Fet</button>
+  </div>
 
   <footer>
     Reserves llegides de la cadena via <a href="https://blockfrost.io" target="_blank" rel="noopener">Blockfrost</a> · preu ADA via CoinGecko<br>
@@ -995,6 +1032,103 @@ function render() {
                                      : `De moment no hi aporta valor: tenir-ho al pool et dona ${money} menys que haver-ho deixat fora.`;
   } else $("vsHodl").hidden = true;
 }
+
+// ---------- disposició dels panells (ordre i amplada, desats a localStorage) ----------
+const panelsBox = $("panels");
+const DEFAULT_ORDER = [...panelsBox.querySelectorAll(":scope>[data-panel]")].map(el => el.dataset.panel);
+let layout = Object.assign({ order: [], wide: [] }, store.get("layout", {}));
+const panelEls = () => [...panelsBox.querySelectorAll(":scope>[data-panel]")];
+function applyLayout() {
+  const byId = Object.fromEntries(panelEls().map(el => [el.dataset.panel, el]));
+  const order = layout.order.filter(id => byId[id]);
+  // Panells nous (que no hi eren quan es va desar l'ordre): al seu lloc per defecte.
+  DEFAULT_ORDER.forEach((id, i) => { if (!order.includes(id)) { const prev = DEFAULT_ORDER.slice(0, i).reverse().find(x => order.includes(x)); order.splice(prev ? order.indexOf(prev) + 1 : 0, 0, id); } });
+  order.forEach(id => panelsBox.appendChild(byId[id]));
+  panelEls().forEach(el => el.classList.toggle("is-wide", layout.wide.includes(el.dataset.panel)));
+  refreshBars(); masonry();
+}
+function saveLayout() { layout.order = panelEls().map(el => el.dataset.panel); store.set("layout", layout); }
+function refreshBars() {
+  const els = panelEls().filter(el => !el.hidden);
+  panelEls().forEach(el => {
+    const b = el.querySelector(":scope>.pbar"); if (!b) return;
+    const i = els.indexOf(el);
+    b.querySelector(".up").disabled = i <= 0; b.querySelector(".down").disabled = i < 0 || i >= els.length - 1;
+    const w = b.querySelector(".wide"); w.setAttribute("aria-pressed", el.classList.contains("is-wide")); w.textContent = el.classList.contains("is-wide") ? "⇥⇤" : "⇤⇥";
+  });
+}
+// Mou un panell per sobre/sota del següent panell visible (els amagats no compten).
+function movePanel(el, dir) {
+  const els = panelEls().filter(x => !x.hidden || x === el), i = els.indexOf(el), other = els[i + dir];
+  if (!other) return;
+  dir < 0 ? panelsBox.insertBefore(el, other) : panelsBox.insertBefore(el, other.nextSibling);
+  saveLayout(); refreshBars(); masonry();
+  el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+panelEls().forEach(el => {
+  const b = document.createElement("div");
+  b.className = "pbar";
+  b.innerHTML = `<button type="button" class="grip" aria-label="Arrossega ${el.dataset.name}">⠿</button><span class="nm">${el.dataset.name}</span>`
+    + `<button type="button" class="up" aria-label="Puja ${el.dataset.name}">↑</button><button type="button" class="down" aria-label="Baixa ${el.dataset.name}">↓</button>`
+    + `<button type="button" class="wide" aria-label="Ample ${el.dataset.name}" title="Ocupa dues columnes">⇤⇥</button>`;
+  el.prepend(b);
+  b.querySelector(".up").addEventListener("click", () => movePanel(el, -1));
+  b.querySelector(".down").addEventListener("click", () => movePanel(el, 1));
+  b.querySelector(".wide").addEventListener("click", () => {
+    const on = el.classList.toggle("is-wide");
+    layout.wide = layout.wide.filter(x => x !== el.dataset.panel).concat(on ? [el.dataset.panel] : []);
+    saveLayout(); refreshBars(); masonry();
+  });
+  b.querySelector(".grip").addEventListener("pointerdown", e => startDrag(e, el));
+});
+// Arrossegar: el panell es col·loca abans o després del panell que hi ha sota el dit.
+function startDrag(e, el) {
+  e.preventDefault();
+  // Escoltem a window: moure el panell dins del DOM fa perdre la captura del punter.
+  el.classList.add("dragging"); document.body.classList.add("dragging");
+  const move = ev => {
+    const under = document.elementsFromPoint(ev.clientX, ev.clientY).map(x => x.closest?.("#panels>[data-panel]")).find(x => x && x !== el);
+    if (under) {
+      const r = under.getBoundingClientRect(), wideGrid = getComputedStyle(panelsBox).display === "grid";
+      const after = wideGrid ? (ev.clientY > r.top + r.height / 2 || ev.clientX > r.left + r.width * 0.75) : ev.clientY > r.top + r.height / 2;
+      const ref = after ? under.nextSibling : under;
+      if (ref !== el && el.nextSibling !== ref) { panelsBox.insertBefore(el, ref); masonry(); }
+    }
+    if (ev.clientY < 60) scrollBy(0, -12); else if (ev.clientY > innerHeight - 60) scrollBy(0, 12);
+  };
+  const up = () => {
+    removeEventListener("pointermove", move); removeEventListener("pointerup", up); removeEventListener("pointercancel", up);
+    el.classList.remove("dragging"); document.body.classList.remove("dragging");
+    saveLayout(); refreshBars(); masonry();
+  };
+  addEventListener("pointermove", move); addEventListener("pointerup", up); addEventListener("pointercancel", up);
+}
+// Mosaic: a pantalla ampla cada panell ocupa tantes files de 2 px com la seva alçada (sense forats grans).
+let masonryQ = 0;
+function masonry() {
+  cancelAnimationFrame(masonryQ);
+  masonryQ = requestAnimationFrame(() => {
+    const grid = getComputedStyle(panelsBox).display === "grid";
+    panelEls().forEach(el => {
+      if (!grid) { el.style.gridRowEnd = ""; return; }
+      el.style.gridRowEnd = "span " + Math.max(1, Math.ceil((el.getBoundingClientRect().height + 16) / 2));
+    });
+  });
+}
+const ro = new ResizeObserver(masonry);
+panelEls().forEach(el => ro.observe(el));
+new MutationObserver(() => { masonry(); refreshBars(); }).observe(panelsBox, { attributes: true, subtree: false, childList: false, attributeFilter: ["hidden"] });
+panelEls().forEach(el => new MutationObserver(() => { masonry(); refreshBars(); }).observe(el, { attributes: true, attributeFilter: ["hidden"] }));
+addEventListener("resize", masonry);
+function setEditing(on) {
+  document.body.classList.toggle("editing", on);
+  $("arrange").setAttribute("aria-pressed", on); $("editbar").hidden = !on;
+  refreshBars(); masonry();
+}
+$("arrange").addEventListener("click", () => setEditing(!document.body.classList.contains("editing")));
+$("layoutDone").addEventListener("click", () => setEditing(false));
+$("layoutReset").addEventListener("click", () => { layout = { order: [], wide: [] }; store.set("layout", layout); applyLayout(); });
+applyLayout();
 
 // ---------- loop ----------
 async function tickPool() {
